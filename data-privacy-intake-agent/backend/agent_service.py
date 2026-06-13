@@ -1,6 +1,7 @@
 import os
 import httpx
 from pathlib import Path
+from typing import Optional
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -11,19 +12,36 @@ class AgentService:
         self.api_key = os.getenv("LLM_API_KEY", "")
         self.model = os.getenv("LLM_MODEL", "gpt-4o-mini")
         self.base_url = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
+        self.base_path = Path(__file__).parent
         
         self.system_prompt = self._load_system_prompt()
         self.knowledge_base = self._load_knowledge_base()
+    
+    def reload_config(self):
+        """Reload configuration files"""
+        self.system_prompt = self._load_system_prompt()
+        self.knowledge_base = self._load_knowledge_base()
+    
+    def set_model(self, model: str):
+        """Set the LLM model to use"""
+        self.model = model
         
     def _load_file(self, filepath: str) -> str:
         """Load content from a file"""
         try:
-            path = Path(__file__).parent / filepath
+            path = self.base_path / filepath
             with open(path, 'r', encoding='utf-8') as f:
                 return f.read()
         except Exception as e:
             print(f"Warning: Could not load {filepath}: {e}")
             return ""
+    
+    def _save_file(self, filepath: str, content: str):
+        """Save content to a file"""
+        path = self.base_path / filepath
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(content)
     
     def _load_system_prompt(self) -> str:
         """Load the system prompt"""
@@ -63,15 +81,126 @@ class AgentService:
         
         return combined_knowledge
     
-    async def call_llm(self, user_message: str) -> str:
-        """Call LLM API with system prompt and user message"""
+    def get_system_prompt(self) -> str:
+        """Get current system prompt"""
+        return self.system_prompt
+    
+    def update_system_prompt(self, content: str):
+        """Update and save system prompt"""
+        self._save_file("prompts/system_prompt.md", content)
+        self.system_prompt = content
+    
+    def get_knowledge_file(self, filename: str) -> str:
+        """Get content of a knowledge base file"""
+        # Check in knowledge folder first
+        knowledge_path = f"knowledge/{filename}"
+        if (self.base_path / knowledge_path).exists():
+            return self._load_file(knowledge_path)
+        
+        # Check in skills folder
+        skills_path = f"skills/{filename}"
+        if (self.base_path / skills_path).exists():
+            return self._load_file(skills_path)
+        
+        raise FileNotFoundError(f"File {filename} not found")
+    
+    def update_knowledge_file(self, filename: str, content: str):
+        """Update a knowledge base file"""
+        # Determine the correct path
+        knowledge_path = f"knowledge/{filename}"
+        skills_path = f"skills/{filename}"
+        
+        if (self.base_path / knowledge_path).exists():
+            self._save_file(knowledge_path, content)
+        elif (self.base_path / skills_path).exists():
+            self._save_file(skills_path, content)
+        else:
+            # Default to knowledge folder for new files
+            self._save_file(knowledge_path, content)
+        
+        # Reload knowledge base
+        self.knowledge_base = self._load_knowledge_base()
+    
+    def list_knowledge_files(self) -> list:
+        """List all knowledge base and skill files"""
+        files = []
+        
+        # Knowledge files
+        knowledge_dir = self.base_path / "knowledge"
+        if knowledge_dir.exists():
+            for f in knowledge_dir.glob("*.md"):
+                files.append({
+                    "name": f.name,
+                    "type": "knowledge",
+                    "path": f"knowledge/{f.name}"
+                })
+        
+        # Skill files
+        skills_dir = self.base_path / "skills"
+        if skills_dir.exists():
+            for f in skills_dir.glob("*.md"):
+                files.append({
+                    "name": f.name,
+                    "type": "skill",
+                    "path": f"skills/{f.name}"
+                })
+        
+        return files
+    
+    def _build_config_context(self, config: Optional[dict] = None) -> str:
+        """Build additional context from config"""
+        if not config:
+            return ""
+        
+        context = "\n\n# DYNAMIC CONFIGURATION\n\n"
+        
+        if config.get("company_name"):
+            context += f"**Company Name:** {config['company_name']}\n\n"
+        
+        if config.get("form_a_link"):
+            context += f"**Form A Link (Domestic):** {config['form_a_link']}\n\n"
+        
+        if config.get("form_b_link"):
+            context += f"**Form B Link (Cross-Border):** {config['form_b_link']}\n\n"
+        
+        if config.get("custom_instructions"):
+            context += f"**Custom Instructions:**\n{config['custom_instructions']}\n\n"
+        
+        if config.get("screening_questions"):
+            context += "**Screening Questions to Ask:**\n"
+            for q in config["screening_questions"]:
+                context += f"- {q}\n"
+            context += "\n"
+        
+        if config.get("sensitive_data_keywords"):
+            context += f"**Sensitive Data Keywords:** {', '.join(config['sensitive_data_keywords'])}\n\n"
+        
+        return context
+    
+    async def call_llm(self, user_message: str, config: Optional[dict] = None, conversation_history: Optional[list] = None) -> str:
+        """Call LLM API with system prompt, conversation history, and user message"""
         if not self.api_key:
-            return self._get_mock_response(user_message)
+            return self._get_mock_response(user_message, config)
         
         try:
+            config_context = self._build_config_context(config)
+            full_system_prompt = f"{self.system_prompt}\n\n{self.knowledge_base}{config_context}"
+            
+            # Build messages array with conversation history
+            messages = [{"role": "system", "content": full_system_prompt}]
+            
+            # Add conversation history if provided
+            if conversation_history:
+                for msg in conversation_history:
+                    messages.append({
+                        "role": msg.get("role", "user"),
+                        "content": msg.get("content", "")
+                    })
+            
+            # Add current user message
+            messages.append({"role": "user", "content": user_message})
+            
             async with httpx.AsyncClient(timeout=120.0) as client:
-                full_system_prompt = f"{self.system_prompt}\n\n{self.knowledge_base}"
-                
                 response = await client.post(
                     f"{self.base_url}/chat/completions",
                     headers={
@@ -80,10 +209,7 @@ class AgentService:
                     },
                     json={
                         "model": self.model,
-                        "messages": [
-                            {"role": "system", "content": full_system_prompt},
-                            {"role": "user", "content": user_message}
-                        ],
+                        "messages": messages,
                         "temperature": 0.7,
                         "max_tokens": 4000,
                     }
@@ -95,10 +221,13 @@ class AgentService:
                 
         except Exception as e:
             print(f"Error calling LLM API: {e}")
-            return self._get_mock_response(user_message)
+            return self._get_mock_response(user_message, config)
     
-    def _get_mock_response(self, user_message: str) -> str:
+    def _get_mock_response(self, user_message: str, config: Optional[dict] = None) -> str:
         """Return a mock response when API key is not available"""
+        form_a_link = config.get("form_a_link", "https://company.form/privacy-domestic-intake") if config else "https://company.form/privacy-domestic-intake"
+        form_b_link = config.get("form_b_link", "https://company.form/privacy-cross-border-intake") if config else "https://company.form/privacy-cross-border-intake"
+        
         return f"""# Kết Quả Phân Tích Case (MOCK RESPONSE)
 
 **⚠️ Lưu ý: Đây là mock response. Cấu hình LLM_API_KEY để có phân tích AI thực.**
@@ -178,11 +307,11 @@ Cần bổ sung thêm thông tin để phân loại chính xác:
 
 **Đối với case TRONG NƯỚC:**
 Vui lòng điền **Form A – Domestic Data Sharing Intake Form** tại link:
-👉 https://company.form/privacy-domestic-intake
+👉 {form_a_link}
 
 **Đối với case NƯỚC NGOÀI:**
 Vui lòng điền **Form B – Cross-border Data Sharing Intake Form** tại link:
-👉 https://company.form/privacy-cross-border-intake
+👉 {form_b_link}
 
 ---
 
@@ -217,6 +346,6 @@ Team Biz/PO dự kiến chia sẻ dữ liệu cho [đối tác] để phục v�
 - **OTIA**: Offshore Transfer Impact Assessment - đánh giá tác động chuyển dữ liệu ra nước ngoài
 """
     
-    async def analyze_case(self, message: str) -> str:
-        """Main entry point for case analysis"""
-        return await self.call_llm(message)
+    async def analyze_case(self, message: str, config: Optional[dict] = None, conversation_history: Optional[list] = None) -> str:
+        """Main entry point for case analysis with conversation history support"""
+        return await self.call_llm(message, config, conversation_history)

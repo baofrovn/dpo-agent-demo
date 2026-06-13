@@ -1,9 +1,180 @@
 import streamlit as st
 import requests
 import os
+import re
+import io
+from datetime import datetime
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill
 
 # Configuration
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+
+# Page configuration
+st.set_page_config(
+    page_title="Privacy Intake Chatbot",
+    page_icon="🔒",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Custom CSS for dark mode fix and better styling
+st.markdown("""
+<style>
+    /* Fix dark mode styling */
+    .stChatMessage {
+        background-color: transparent !important;
+    }
+    
+    /* Better input styling */
+    .stChatInputContainer {
+        border-top: 1px solid rgba(49, 51, 63, 0.2);
+        padding-top: 1rem;
+    }
+    
+    /* Session list styling */
+    .session-item {
+        padding: 0.5rem;
+        border-radius: 0.5rem;
+        margin-bottom: 0.5rem;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    
+    .session-item:hover {
+        background-color: rgba(151, 166, 195, 0.15);
+    }
+    
+    .session-item.active {
+        background-color: rgba(28, 131, 225, 0.15);
+        border-left: 3px solid #1c83e1;
+    }
+    
+    /* Welcome message */
+    .welcome-box {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 2rem;
+        border-radius: 1rem;
+        color: white;
+        margin-bottom: 1.5rem;
+    }
+    
+    .welcome-box h4 {
+        color: white;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Settings section */
+    .settings-section {
+        background-color: rgba(240, 242, 246, 0.5);
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    [data-theme="dark"] .settings-section {
+        background-color: rgba(49, 51, 63, 0.3);
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
+def parse_markdown_to_excel(markdown_content: str) -> bytes:
+    """Convert markdown analysis result to Excel file"""
+    wb = Workbook()
+    
+    # Styles
+    header_font = Font(bold=True, size=14, color="FFFFFF")
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    section_font = Font(bold=True, size=12)
+    
+    ws_summary = wb.active
+    ws_summary.title = "Tóm Tắt"
+    
+    sections = re.split(r'\n## ', markdown_content)
+    
+    current_row = 1
+    
+    ws_summary.cell(row=current_row, column=1, value="KẾT QUẢ PHÂN TÍCH CASE - DATA PRIVACY")
+    ws_summary.cell(row=current_row, column=1).font = Font(bold=True, size=16)
+    ws_summary.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=4)
+    current_row += 2
+    
+    classification_data = []
+    checklist_data = []
+    summary_text = ""
+    
+    for section in sections:
+        if section.startswith("A.") or "Bảng Phân Loại" in section:
+            table_match = re.findall(r'\|(.+?)\|(.+?)\|', section)
+            for row in table_match:
+                if '---' not in row[0] and 'Câu hỏi' not in row[0]:
+                    classification_data.append({
+                        'Câu hỏi': row[0].strip(),
+                        'Kết quả sơ bộ': row[1].strip()
+                    })
+        
+        elif section.startswith("D.") or "Checklist" in section:
+            table_match = re.findall(r'\|(.+?)\|(.+?)\|', section)
+            for row in table_match:
+                if '---' not in row[0] and 'Nhóm hồ sơ' not in row[0]:
+                    checklist_data.append({
+                        'Nhóm hồ sơ': row[0].strip(),
+                        'Cần chuẩn bị': row[1].strip()
+                    })
+        
+        elif section.startswith("G.") or "Tóm Tắt" in section:
+            summary_match = re.search(r'\*\*Tóm tắt request gửi Data Privacy:\*\*\s*(.*?)(?:\n---|\n##|$)', section, re.DOTALL)
+            if summary_match:
+                summary_text = summary_match.group(1).strip()
+    
+    ws_summary.cell(row=current_row, column=1, value="BẢNG PHÂN LOẠI SƠ BỘ")
+    ws_summary.cell(row=current_row, column=1).font = section_font
+    current_row += 1
+    
+    if classification_data:
+        ws_summary.cell(row=current_row, column=1, value="Câu hỏi")
+        ws_summary.cell(row=current_row, column=2, value="Kết quả sơ bộ")
+        ws_summary.cell(row=current_row, column=1).font = header_font
+        ws_summary.cell(row=current_row, column=1).fill = header_fill
+        ws_summary.cell(row=current_row, column=2).font = header_font
+        ws_summary.cell(row=current_row, column=2).fill = header_fill
+        current_row += 1
+        
+        for item in classification_data:
+            ws_summary.cell(row=current_row, column=1, value=item['Câu hỏi'])
+            ws_summary.cell(row=current_row, column=2, value=item['Kết quả sơ bộ'])
+            current_row += 1
+    
+    current_row += 2
+    
+    ws_summary.cell(row=current_row, column=1, value="CHECKLIST HỒ SƠ CẦN CHUẨN BỊ")
+    ws_summary.cell(row=current_row, column=1).font = section_font
+    current_row += 1
+    
+    if checklist_data:
+        ws_summary.cell(row=current_row, column=1, value="Nhóm hồ sơ")
+        ws_summary.cell(row=current_row, column=2, value="Cần chuẩn bị")
+        ws_summary.cell(row=current_row, column=1).font = header_font
+        ws_summary.cell(row=current_row, column=1).fill = header_fill
+        ws_summary.cell(row=current_row, column=2).font = header_font
+        ws_summary.cell(row=current_row, column=2).fill = header_fill
+        current_row += 1
+        
+        for item in checklist_data:
+            ws_summary.cell(row=current_row, column=1, value=item['Nhóm hồ sơ'])
+            ws_summary.cell(row=current_row, column=2, value=item['Cần chuẩn bị'])
+            current_row += 1
+    
+    ws_summary.column_dimensions['A'].width = 45
+    ws_summary.column_dimensions['B'].width = 50
+    
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    return output.getvalue()
+
 
 # Sample cases
 SAMPLE_CASES = {
@@ -11,180 +182,409 @@ SAMPLE_CASES = {
     
     "🟡 Domestic Sharing": """Team tôi muốn chia sẻ họ tên, số điện thoại và lịch sử giao dịch của khách hàng cho vendor tại Việt Nam để chăm sóc khách hàng. Vendor sẽ gọi điện và hỗ trợ khách hàng về các giao dịch của họ. Dữ liệu bao gồm: tên, số điện thoại, email, user ID, lịch sử giao dịch (ngày, số tiền, loại giao dịch) trong 6 tháng gần nhất. Vendor có khoảng 50 nhân viên chăm sóc khách hàng tại văn phòng Hà Nội. Chúng tôi chưa có DPA với vendor này.""",
     
-    "🔴 ANT Singapore (Demo)": """Team em muốn hợp tác với đối tác ANT Singapore để tư vấn credit scoring. Dữ liệu dự kiến chia sẻ gồm user_id_hash, transaction_count, transaction_amount, BNPL_payment_amt, device_id. Dữ liệu gửi qua API hằng ngày. Đối tác lưu 12 tháng để tư vấn scoring. Chưa rõ có DPA chưa. Không biết cần chuẩn bị gì trước khi gửi Data Privacy review?"""
+    "🔴 ANT Singapore": """Team em muốn hợp tác với đối tác ANT Singapore để tư vấn credit scoring. Dữ liệu dự kiến chia sẻ gồm user_id_hash, transaction_count, transaction_amount, BNPL_payment_amt, device_id. Dữ liệu gửi qua API hằng ngày. Đối tác lưu 12 tháng để tư vấn scoring. Chưa rõ có DPA chưa. Không biết cần chuẩn bị gì trước khi gửi Data Privacy review?"""
 }
 
-# Page configuration
-st.set_page_config(
-    page_title="Privacy Intake Triage Agent",
-    page_icon="🔒",
-    layout="wide",
-)
 
-# Title and description
-st.title("🔒 Privacy Intake Triage Agent")
-st.caption("Agent sàng lọc yêu cầu chia sẻ dữ liệu trước khi gửi Data Privacy review")
+# API Functions
+def get_sessions():
+    """Get all chat sessions"""
+    try:
+        response = requests.get(f"{BACKEND_URL}/sessions", timeout=10)
+        if response.status_code == 200:
+            return response.json().get("sessions", [])
+    except:
+        pass
+    return []
 
-st.markdown("""
-Giúp Biz/PO xác định nhanh case chia sẻ dữ liệu thuộc nhóm nào, cần chuẩn bị hồ sơ gì và gửi đúng form cho Data Privacy review.
 
-**Agent này sẽ:**
-- Hỏi câu sàng lọc nếu thiếu thông tin
-- Phân loại case: Không có dữ liệu cá nhân / Trong nước / Nước ngoài
-- Đưa checklist hồ sơ cần chuẩn bị
-- Gửi đúng link form (Form A hoặc Form B)
-- Tạo summary để Biz copy gửi Data Privacy team
-""")
+def create_session(name: str):
+    """Create a new session"""
+    try:
+        response = requests.post(
+            f"{BACKEND_URL}/sessions",
+            json={"name": name},
+            timeout=10
+        )
+        if response.status_code == 200:
+            return response.json().get("session")
+    except:
+        pass
+    return None
 
-st.divider()
 
-# Sidebar with sample cases
+def get_session(session_id: str):
+    """Get a specific session"""
+    try:
+        response = requests.get(f"{BACKEND_URL}/sessions/{session_id}", timeout=10)
+        if response.status_code == 200:
+            return response.json()
+    except:
+        pass
+    return None
+
+
+def update_session(session_id: str, messages: list):
+    """Update session messages"""
+    try:
+        response = requests.put(
+            f"{BACKEND_URL}/sessions/{session_id}",
+            json={"messages": messages},
+            timeout=10
+        )
+        if response.status_code == 200:
+            return True
+    except:
+        pass
+    return False
+
+
+def delete_session(session_id: str):
+    """Delete a session"""
+    try:
+        response = requests.delete(f"{BACKEND_URL}/sessions/{session_id}", timeout=10)
+        return response.status_code == 200
+    except:
+        return False
+
+
+def get_settings():
+    """Get current settings"""
+    try:
+        response = requests.get(f"{BACKEND_URL}/settings", timeout=10)
+        if response.status_code == 200:
+            return response.json()
+    except:
+        pass
+    return {"model": "gpt-4o-mini", "custom_instructions": "", "available_models": []}
+
+
+def update_settings(model: str = None, custom_instructions: str = None):
+    """Update settings"""
+    try:
+        data = {}
+        if model is not None:
+            data["model"] = model
+        if custom_instructions is not None:
+            data["custom_instructions"] = custom_instructions
+        
+        response = requests.put(
+            f"{BACKEND_URL}/settings",
+            json=data,
+            timeout=10
+        )
+        return response.status_code == 200
+    except:
+        return False
+
+
+def send_message(user_message: str, conversation_history: list):
+    """Send message to backend and get response"""
+    try:
+        response = requests.post(
+            f"{BACKEND_URL}/chat",
+            json={
+                "message": user_message,
+                "conversation_history": conversation_history
+            },
+            timeout=120
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            return result.get("answer", "Không có phản hồi từ agent")
+        else:
+            return f"❌ Lỗi: Backend trả về status code {response.status_code}"
+            
+    except requests.exceptions.ConnectionError:
+        return "❌ Không thể kết nối backend. Vui lòng đảm bảo backend đang chạy."
+    except requests.exceptions.Timeout:
+        return "⏱️ Request timeout. Vui lòng thử lại."
+    except Exception as e:
+        return f"❌ Đã xảy ra lỗi: {str(e)}"
+
+
+# Initialize session state
+if "current_session_id" not in st.session_state:
+    st.session_state.current_session_id = None
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+if "pending_sample" not in st.session_state:
+    st.session_state.pending_sample = None
+
+if "settings" not in st.session_state:
+    st.session_state.settings = get_settings()
+
+if "just_created_session" not in st.session_state:
+    st.session_state.just_created_session = False
+
+
+# Sidebar
 with st.sidebar:
-    st.header("📋 Demo Cases")
-    st.markdown("Chọn case mẫu để test:")
+    st.title("🔒 Privacy Chatbot")
     
+    # Settings section
+    with st.expander("⚙️ Settings", expanded=False):
+        st.markdown('<div class="settings-section">', unsafe_allow_html=True)
+        
+        # Model selector
+        st.subheader("🤖 Model Selection")
+        available_models = st.session_state.settings.get("available_models", [])
+        current_model = st.session_state.settings.get("model", "gpt-4o-mini")
+        
+        model_options = {m["id"]: f"{m['name']} ({m['provider']})" for m in available_models}
+        selected_model = st.selectbox(
+            "Select AI Model:",
+            options=list(model_options.keys()),
+            format_func=lambda x: model_options[x],
+            index=list(model_options.keys()).index(current_model) if current_model in model_options else 0,
+            key="model_selector"
+        )
+        
+        if st.button("💾 Save Model", use_container_width=True):
+            if update_settings(model=selected_model):
+                st.session_state.settings["model"] = selected_model
+                st.success("✅ Model updated!")
+                st.rerun()
+            else:
+                st.error("❌ Failed to update model")
+        
+        st.divider()
+        
+        # Custom instructions
+        st.subheader("📝 Custom Instructions")
+        custom_instructions = st.text_area(
+            "Instructions for the agent (applied to every message):",
+            value=st.session_state.settings.get("custom_instructions", ""),
+            height=150,
+            placeholder="Example: Always respond in a formal tone. Focus on compliance requirements...",
+            key="custom_instructions_input"
+        )
+        
+        if st.button("💾 Save Instructions", use_container_width=True):
+            if update_settings(custom_instructions=custom_instructions):
+                st.session_state.settings["custom_instructions"] = custom_instructions
+                st.success("✅ Instructions updated!")
+            else:
+                st.error("❌ Failed to update instructions")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # Session management
+    st.subheader("💬 Chat Sessions")
+    
+    # New session button
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        if st.button("➕ New Chat", use_container_width=True, key="new_chat_btn"):
+            new_session = create_session(f"Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+            if new_session:
+                st.session_state.current_session_id = new_session["id"]
+                st.session_state.messages = []
+                st.toast("✅ Chat mới đã được tạo!", icon="✅")
+                st.rerun()
+            else:
+                st.error("❌ Không thể tạo chat mới")
+    
+    with col2:
+        if st.button("🔄", use_container_width=True, help="Refresh danh sách"):
+            st.rerun()
+    
+    # List sessions
+    sessions = get_sessions()
+    
+    # Show active session info
+    if st.session_state.current_session_id:
+        current_name = "Unknown"
+        for s in sessions:
+            if s["id"] == st.session_state.current_session_id:
+                current_name = s["name"]
+                break
+        st.info(f"📍 **Active:** {current_name}")
+    
+    if sessions:
+        st.markdown("**Saved Chats:**")
+        for session in sessions:
+            is_active = session["id"] == st.session_state.current_session_id
+            
+            col1, col2 = st.columns([4, 1])
+            
+            with col1:
+                # Button label with message count
+                msg_count = session.get("message_count", 0)
+                label = f"{'📍' if is_active else '💬'} {session['name']} ({msg_count})"
+                
+                if st.button(
+                    label,
+                    key=f"session_{session['id']}",
+                    use_container_width=True,
+                    type="primary" if is_active else "secondary",
+                    disabled=is_active  # Disable if already active
+                ):
+                    # Load session
+                    loaded_session = get_session(session["id"])
+                    if loaded_session:
+                        st.session_state.current_session_id = session["id"]
+                        st.session_state.messages = loaded_session.get("messages", [])
+                        st.toast(f"📂 Đã load: {session['name']}", icon="📂")
+                        st.rerun()
+            
+            with col2:
+                if st.button("🗑️", key=f"delete_{session['id']}", use_container_width=True, help="Xóa chat"):
+                    if delete_session(session["id"]):
+                        if st.session_state.current_session_id == session["id"]:
+                            st.session_state.current_session_id = None
+                            st.session_state.messages = []
+                        st.toast("🗑️ Đã xóa chat", icon="🗑️")
+                        st.rerun()
+    else:
+        st.info("💡 Chưa có chat nào. Click 'New Chat' để bắt đầu!")
+    
+    st.divider()
+    
+    # Demo cases
+    st.subheader("📋 Demo Cases")
     for case_name, case_text in SAMPLE_CASES.items():
         if st.button(case_name, key=f"sample_{case_name}", use_container_width=True):
-            st.session_state.case_description = case_text
+            st.session_state.pending_sample = case_text
     
     st.divider()
     
-    st.markdown("### 📝 Hướng dẫn Demo")
-    st.markdown("""
-    1. Click **🔴 ANT Singapore** (case chính)
-    2. Click **Phân Tích Case**
-    3. Xem kết quả phân loại
-    
-    **3 loại kết quả:**
-    - Không có dữ liệu cá nhân
-    - Chia sẻ trong nước → Form A
-    - Chia sẻ nước ngoài → Form B
-    """)
+    # Export section
+    if st.session_state.messages:
+        st.subheader("📥 Export")
+        
+        last_assistant_msg = None
+        for msg in reversed(st.session_state.messages):
+            if msg["role"] == "assistant":
+                last_assistant_msg = msg["content"]
+                break
+        
+        if last_assistant_msg:
+            col1, col2 = st.columns(2)
+            with col1:
+                excel_data = parse_markdown_to_excel(last_assistant_msg)
+                st.download_button(
+                    label="📥 Excel",
+                    data=excel_data,
+                    file_name="privacy_analysis.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+            with col2:
+                st.download_button(
+                    label="📄 MD",
+                    data=last_assistant_msg,
+                    file_name="privacy_analysis.md",
+                    mime="text/markdown",
+                    use_container_width=True
+                )
     
     st.divider()
     
-    st.markdown("### ℹ️ About")
-    st.markdown("""
-    **Version:** 1.0.0 MVP  
-    **For:** AI Competition Demo
+    # Admin Panel link
+    if st.button("⚙️ Admin Panel", use_container_width=True, help="Edit prompts, knowledge, skills"):
+        st.switch_page("pages/1_⚙️_Admin_Panel.py")
     
-    ⚠️ Đây là phân loại sơ bộ. Kết luận cuối cùng cần Data Privacy team xác nhận.
-    """)
+    st.divider()
+    
+    st.caption(f"**Model:** {st.session_state.settings.get('model', 'N/A')}")
+    st.caption("**Version:** 2.0.0")
 
-# Main input area
-st.header("📝 Mô Tả Case Của Bạn")
 
-case_description = st.text_area(
-    "Nhập mô tả case cần Data Privacy review:",
-    value=st.session_state.get("case_description", ""),
-    height=150,
-    placeholder="Ví dụ: Team em muốn chia sẻ dữ liệu cho đối tác ABC để làm XYZ...",
-    key="case_input"
-)
+# Main chat area
+st.title("Privacy Intake Chatbot")
+st.caption("Chatbot hỗ trợ sàng lọc yêu cầu chia sẻ dữ liệu trước khi gửi Data Privacy review")
 
-# Update session state
-if case_description:
-    st.session_state.case_description = case_description
+# Display welcome message or chat history
+if not st.session_state.messages:
+    # Show session info if exists
+    if st.session_state.current_session_id:
+        st.success("✅ Chat mới đã sẵn sàng! Bắt đầu nhập câu hỏi ở dưới.", icon="✅")
+    
+    st.markdown("""
+    <div class="welcome-box">
+        <h4>👋 Xin chào! Tôi là Privacy Intake Chatbot</h4>
+        <p>Tôi sẽ giúp bạn chuẩn bị hồ sơ trước khi gửi Data Privacy review.</p>
+        <p><strong>Hãy mô tả case của bạn:</strong></p>
+        <ul>
+            <li>Bạn muốn chia sẻ dữ liệu gì?</li>
+            <li>Cho đối tác nào?</li>
+            <li>Mục đích là gì?</li>
+        </ul>
+        <p><em>💡 Tip: Chọn Demo Case từ sidebar hoặc setup Custom Instructions trong Settings</em></p>
+    </div>
+    """, unsafe_allow_html=True)
+else:
+    # Display chat messages
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-# Analyze button
-col1, col2, col3 = st.columns([1, 1, 2])
-with col1:
-    analyze_button = st.button("🔍 Phân Tích Case", type="primary", use_container_width=True)
-with col2:
-    clear_button = st.button("🗑️ Xóa", use_container_width=True)
-
-if clear_button:
-    st.session_state.case_description = ""
+# Handle pending sample case
+if st.session_state.pending_sample:
+    sample_text = st.session_state.pending_sample
+    st.session_state.pending_sample = None
+    
+    # Add user message
+    st.session_state.messages.append({"role": "user", "content": sample_text})
+    
+    # Save to current session
+    if st.session_state.current_session_id:
+        update_session(st.session_state.current_session_id, st.session_state.messages)
+    
+    # Get response
+    with st.spinner("🤖 Đang phân tích..."):
+        history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[:-1]]
+        response = send_message(sample_text, history)
+    
+    # Add assistant response
+    st.session_state.messages.append({"role": "assistant", "content": response})
+    
+    # Save to current session
+    if st.session_state.current_session_id:
+        update_session(st.session_state.current_session_id, st.session_state.messages)
+    
     st.rerun()
 
-# Analysis section
-if analyze_button:
-    if not case_description.strip():
-        st.error("⚠️ Vui lòng nhập mô tả case trước khi phân tích.")
-    else:
-        with st.spinner("🤖 Agent đang phân tích case... Vui lòng chờ 10-30 giây..."):
-            try:
-                # Call backend API
-                response = requests.post(
-                    f"{BACKEND_URL}/chat",
-                    json={"message": case_description},
-                    timeout=120
-                )
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    answer = result.get("answer", "Không có phản hồi từ agent")
-                    
-                    st.success("✅ Phân Tích Hoàn Tất!")
-                    st.divider()
-                    
-                    # Display result
-                    st.header("📊 Kết Quả Phân Tích")
-                    
-                    # Check if answer contains mermaid diagram
-                    if "```mermaid" in answer:
-                        # Split by mermaid sections
-                        parts = answer.split("```mermaid")
-                        
-                        for i, part in enumerate(parts):
-                            if i == 0:
-                                # Before first mermaid
-                                st.markdown(part)
-                            else:
-                                # Extract mermaid code and rest
-                                if "```" in part:
-                                    mermaid_code, rest = part.split("```", 1)
-                                    
-                                    # Display mermaid diagram
-                                    st.markdown("**Data Flow Diagram:**")
-                                    st.code(mermaid_code.strip(), language="mermaid")
-                                    
-                                    # Try to render with mermaid (fallback to code if not supported)
-                                    try:
-                                        st.markdown(f"""
-                                        ```mermaid
-                                        {mermaid_code.strip()}
-                                        ```
-                                        """)
-                                    except:
-                                        pass
-                                    
-                                    # Display rest of content
-                                    if rest:
-                                        st.markdown(rest)
-                    else:
-                        # No mermaid, just display as markdown
-                        st.markdown(answer)
-                    
-                    # Download button for results
-                    st.divider()
-                    st.download_button(
-                        label="📥 Tải Kết Quả",
-                        data=answer,
-                        file_name="privacy_analysis.md",
-                        mime="text/markdown",
-                        use_container_width=False
-                    )
-                    
-                else:
-                    st.error(f"❌ Lỗi: Backend trả về status code {response.status_code}")
-                    st.error(f"Chi tiết: {response.text}")
-                    
-            except requests.exceptions.ConnectionError:
-                st.error("❌ Không thể kết nối backend. Vui lòng đảm bảo backend đang chạy.")
-                st.info(f"Backend URL: {BACKEND_URL}")
-                st.code("docker-compose up -d", language="bash")
-            except requests.exceptions.Timeout:
-                st.error("⏱️ Request timeout. Phân tích đang mất nhiều thời gian hơn dự kiến. Vui lòng thử lại.")
-            except Exception as e:
-                st.error(f"❌ Đã xảy ra lỗi: {str(e)}")
+# Chat input
+if prompt := st.chat_input("Nhập mô tả case của bạn..."):
+    # Create new session if none exists
+    if not st.session_state.current_session_id:
+        new_session = create_session(f"Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        if new_session:
+            st.session_state.current_session_id = new_session["id"]
+    
+    # Add user message
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    
+    # Display user message
+    with st.chat_message("user"):
+        st.markdown(prompt)
+    
+    # Get and display assistant response
+    with st.chat_message("assistant"):
+        with st.spinner("🤖 Đang phân tích..."):
+            history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[:-1]]
+            response = send_message(prompt, history)
+        st.markdown(response)
+    
+    # Add assistant response
+    st.session_state.messages.append({"role": "assistant", "content": response})
+    
+    # Save to current session
+    if st.session_state.current_session_id:
+        update_session(st.session_state.current_session_id, st.session_state.messages)
 
 # Footer
 st.divider()
 st.markdown("""
 <div style='text-align: center; color: #666; font-size: 0.9em;'>
-    <p><strong>⚠️ Lưu ý quan trọng:</strong> Đây là phân loại sơ bộ từ Agent để giúp bạn chuẩn bị hồ sơ. 
-    Kết luận cuối cùng cần được Data Privacy team xác nhận chính thức sau khi review đầy đủ.</p>
-    <p>Privacy Intake Triage Agent MVP | Built for AI Competition</p>
+    <p><strong>⚠️ Lưu ý:</strong> Đây là phân loại sơ bộ. Kết luận cuối cùng cần Data Privacy team xác nhận.</p>
+    <p>Privacy Intake Chatbot v2.0 | Built with ❤️ for AI Competition</p>
 </div>
 """, unsafe_allow_html=True)
