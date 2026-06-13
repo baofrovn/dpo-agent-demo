@@ -82,52 +82,77 @@ We don't have a DPA with this vendor yet.
 
 ---
 
-## Case 3: Cross-Border Transfer - Credit Scoring
+## Case 3: Cross-Border Transfer - Credit Scoring (Demo Case Chính)
 
-**Case Title:** Cross-Border Transfer for Credit Assessment
+**Case Title:** Cross-Border Transfer for Credit Assessment with ANT Singapore
 
-**Case Description:**
+**Case Description (Dùng cho Demo):**
 ```
-Team tôi muốn gửi user_id, số điện thoại, transaction history và credit score 
-cho vendor ở Singapore qua API để chấm điểm tín dụng. Vendor này là CreditTech 
-Pte Ltd, có văn phòng tại Singapore và dữ liệu sẽ được lưu trên AWS Singapore. 
-Team support của vendor có thể truy cập từ Singapore và Philippines. Dữ liệu 
-bao gồm: user_id, số điện thoại, email, lịch sử giao dịch 12 tháng, số dư tài khoản, 
-credit score hiện tại. Khoảng 30,000 khách hàng sẽ bị ảnh hưởng. Chúng tôi đã có 
-draft contract nhưng chưa có DPA. Vendor có ISO 27001 certification.
+Team em muốn hợp tác với đối tác ANT Singapore để tư vấn credit scoring. 
+Dữ liệu dự kiến chia sẻ gồm user_id_hash, transaction_count, transaction_amount, 
+BNPL_payment_amt, device_id. Dữ liệu gửi qua API hằng ngày. Không biết cần 
+chuẩn bị gì trước khi gửi Data Privacy review?
+```
+
+**Case Description (Version đầy đủ sau khi Biz bổ sung):**
+```
+Đối tác ở Singapore. Fields gồm user_id_hash, transaction_count, transaction_amount, 
+BNPL_payment_amt, device_id. Gửi qua API hằng ngày. Đối tác lưu 12 tháng để 
+tư vấn scoring. Chưa rõ có DPA chưa.
 ```
 
 **English Translation:**
 ```
-My team wants to send user_id, phone number, transaction history, and credit 
-score to a vendor in Singapore via API for credit scoring. The vendor is 
-CreditTech Pte Ltd, with office in Singapore and data will be stored on AWS 
-Singapore. The vendor's support team can access from Singapore and Philippines. 
-Data includes: user_id, phone number, email, 12-month transaction history, 
-account balance, current credit score. About 30,000 customers will be affected. 
-We have a draft contract but no DPA yet. The vendor has ISO 27001 certification.
+My team wants to partner with ANT Singapore for credit scoring advisory. 
+Data to be shared includes user_id_hash, transaction_count, transaction_amount, 
+BNPL_payment_amt, device_id. Data sent via API daily. Not sure what to prepare 
+before submitting for Data Privacy review?
 ```
 
-**Expected Classification:**
-- **Personal Data Involved:** Yes (clear identifiers)
-- **Sensitive Personal Data:** Yes (financial data: transaction history, account balance, credit score)
-- **Transfer Type:** Cross-Border Transfer (Singapore + Philippines)
-- **Human Review Required:** Yes (cross-border + sensitive data + large scale)
+**Expected Agent Flow:**
+
+1. **Agent nhận request** → thấy thiếu một số thông tin
+2. **Agent hỏi lại:**
+   - Đối tác ở Việt Nam hay nước ngoài?
+   - Dữ liệu có liên quan khách hàng không?
+   - Đối tác lưu dữ liệu bao lâu?
+   - Đã có DPA chưa?
+3. **Biz bổ sung thông tin**
+4. **Agent phân loại và output đầy đủ**
+
+**Expected Classification Table:**
+
+| Câu hỏi | Kết quả sơ bộ |
+|---------|---------------|
+| Có chia sẻ dữ liệu cho đối tác không? | Có |
+| Có dữ liệu cá nhân không? | Có khả năng có |
+| Có dữ liệu cá nhân nhạy cảm không? | Có khả năng có (dữ liệu giao dịch/tài chính/BNPL) |
+| Chia sẻ trong nước hay ngoài nước? | Ngoài nước (Singapore) |
+| Cần Data Privacy review không? | Có |
+| Cần Legal/DPA review không? | Có |
+| Cần Security review không? | Có |
+| Cần xem xét OTIA không? | Có khả năng cần |
+
+**Expected Form:** Form B – Cross-border Data Sharing Intake Form
+
+**Expected Summary:**
+```
+Tóm tắt request gửi Data Privacy:
+Team Biz/PO dự kiến chia sẻ dữ liệu cho ANT Singapore để phục vụ mục đích tư vấn 
+credit scoring. Dữ liệu dự kiến gồm user_id_hash, transaction_count, transaction_amount, 
+BNPL_payment_amt, device_id. Dữ liệu được gửi qua API hằng ngày và đối tác dự kiến 
+lưu trong 12 tháng. Agent phân loại sơ bộ đây là hoạt động chia sẻ dữ liệu cá nhân 
+ra nước ngoài, có khả năng liên quan dữ liệu tài chính/giao dịch nên cần Data Privacy, 
+Legal và Security review trước khi triển khai.
+```
 
 **Key Points to Test:**
-- Agent should identify multiple countries (Singapore + Philippines)
-- Agent should classify as cross-border based on vendor location, storage location, and access location
-- Agent should identify sensitive financial data (transaction history, balance, credit score)
-- Agent should flag large scale (30,000 users) as high risk factor
-- Agent should use OTIA checklist (cross-border)
-- Agent should request DPA with cross-border clauses
-- Agent should request evidence of user consent for cross-border transfer
-- Agent should ask about Philippines sub-processor details
-- Agent should mark as High Risk due to: cross-border + sensitive data + large scale
-- Agent should recommend Privacy Impact Assessment
-- Agent should request assessment of Singapore and Philippines data protection levels
-- Agent should create data flow showing: Customer → App → Backend Vietnam → API → CreditTech Singapore → AWS Singapore, with Philippines access shown
-- Agent should recommend executive approval due to risk level and scale
+- Agent should recognize this as cross-border (Singapore)
+- Agent should identify BNPL data as sensitive financial data
+- Agent should use Form B link
+- Agent should use OTIA checklist
+- Agent should generate summary in the correct format
+- Agent should include disclaimer about Privacy team confirmation
 
 ---
 
@@ -239,24 +264,38 @@ For each case, the agent should provide:
 
 ---
 
-## Demo Script
+## Demo Script (Khuyến nghị)
 
-**For live demo, use this flow:**
+**Cho live demo, sử dụng flow này:**
 
-1. **Start with Case 1 (No Personal Data):**
-   - Show how agent handles low-risk case
-   - Demonstrate agent asks for confirmation of anonymization
-   - Show simplified output
+### Demo Chính: Case ANT Singapore (Cross-Border)
 
-2. **Then Case 2 (Domestic Sharing):**
-   - Show identification of sensitive financial data
-   - Demonstrate DPA checklist
-   - Show missing information requests
+**Bước 1: Biz hỏi Agent**
+```
+Team em muốn hợp tác với đối tác ANT Singapore để tư vấn credit scoring. 
+Dữ liệu dự kiến chia sẻ gồm user_id_hash, transaction_count, transaction_amount, 
+BNPL_payment_amt, device_id. Dữ liệu gửi qua API hằng ngày. Không biết cần 
+chuẩn bị gì trước khi gửi Data Privacy review?
+```
 
-3. **Finally Case 3 (Cross-Border):**
-   - Show cross-border classification logic
-   - Demonstrate OTIA checklist
-   - Show high-risk assessment
-   - Highlight comprehensive requirements
+**Bước 2: Agent có thể hỏi lại (nếu cần)**
+- Đối tác lưu dữ liệu bao lâu?
+- Đã có DPA chưa?
 
-**Key message:** Agent helps Biz teams prepare complete submissions, saving Data Privacy team time and ensuring compliance.
+**Bước 3: Biz bổ sung**
+```
+Đối tác lưu 12 tháng để tư vấn scoring. Chưa rõ có DPA chưa.
+```
+
+**Bước 4: Agent output đầy đủ**
+- Bảng phân loại
+- Checklist hồ sơ
+- Link Form B
+- Summary để copy gửi Privacy team
+
+### Demo Phụ (Nếu có thời gian)
+
+1. **Case No Personal Data** - Cho thấy Agent xử lý low-risk case
+2. **Case Domestic** - Cho thấy Form A và DPA checklist
+
+**Key message:** Agent không thay thế Data Privacy review, mà giúp chuẩn hóa đầu vào, giảm hỏi đáp lặp lại và đưa Privacy vào sớm hơn trước khi sản phẩm triển khai.

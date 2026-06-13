@@ -99,142 +99,122 @@ class AgentService:
     
     def _get_mock_response(self, user_message: str) -> str:
         """Return a mock response when API key is not available"""
-        return f"""# Data Privacy Case Analysis (MOCK RESPONSE)
+        return f"""# Kết Quả Phân Tích Case (MOCK RESPONSE)
 
-**Note: This is a mock response. Configure LLM_API_KEY to get real AI analysis.**
-
----
-
-## A. Case Classification
-
-**Personal Data Involved:** Likely Yes  
-**Sensitive Personal Data:** Potentially Yes  
-**Transfer Type:** Need Confirmation  
-**Human Review Required:** Yes
+**⚠️ Lưu ý: Đây là mock response. Cấu hình LLM_API_KEY để có phân tích AI thực.**
 
 ---
 
-## B. Reasoning
+## A. Bảng Phân Loại Sơ Bộ
 
-Based on the limited information provided in your request:
+| Câu hỏi | Kết quả sơ bộ |
+|---------|---------------|
+| Có chia sẻ dữ liệu cho đối tác không? | Có khả năng có |
+| Có dữ liệu cá nhân không? | Có khả năng có |
+| Có dữ liệu cá nhân nhạy cảm không? | Cần xác nhận |
+| Chia sẻ trong nước hay ngoài nước? | Cần xác nhận |
+| Cần Data Privacy review không? | Có |
+| Cần Legal/DPA review không? | Có khả năng cần |
+| Cần Security review không? | Có khả năng cần |
+| Cần xem xét OTIA không? | Cần xác nhận |
+
+---
+
+## B. Lý Do Phân Loại
+
+Dựa trên thông tin từ request:
 
 ```
 {user_message[:200]}...
 ```
 
-Without complete API integration, this is a template response. The actual agent would:
-- Analyze the business purpose
-- Identify data categories
-- Classify transfer type (domestic/cross-border)
-- Assess risk level
+Cần bổ sung thêm thông tin để phân loại chính xác:
+- Vị trí đối tác (trong nước/nước ngoài)
+- Loại dữ liệu cụ thể
+- Phương thức truyền dữ liệu
 
 ---
 
-## C. Missing Information
+## C. Thông Tin Còn Thiếu
 
-Please provide the following information:
-- [ ] Clear business purpose and use case
-- [ ] Specific data categories being processed/shared
-- [ ] Recipient/vendor name and location
-- [ ] Data subjects affected (customers, users, etc.)
-- [ ] Data transfer mechanism (API, file transfer, database access, etc.)
-- [ ] Data retention period
-- [ ] Security measures in place
-- [ ] Existing contracts or agreements
-
----
-
-## D. Required Document Checklist
-
-**For Domestic Data Sharing:**
-- [ ] Contract/MSA with partner
-- [ ] Data Processing Agreement (DPA)
-- [ ] Purpose of processing
-- [ ] List of personal data categories
-- [ ] Roles of parties
-- [ ] Data retention period
-- [ ] Security measures
-- [ ] Sub-processor list (if any)
-- [ ] Incident response obligations
-- [ ] Evidence of user notice/consent
-
-**For Cross-Border Transfer:**
-- [ ] Recipient name and country
-- [ ] Cross-border transfer purpose
-- [ ] Data categories for transfer
-- [ ] Data subject groups
-- [ ] Transfer mechanism
-- [ ] DPA with cross-border clauses
-- [ ] Security assessment
-- [ ] Data protection level assessment
+Để xác định đúng checklist, vui lòng cho biết:
+- [ ] Đối tác nhận dữ liệu ở Việt Nam hay nước ngoài?
+- [ ] Dữ liệu dự kiến chia sẻ gồm những field nào?
+- [ ] Dữ liệu có liên quan khách hàng/người dùng không?
+- [ ] Đối tác dùng dữ liệu để làm gì?
+- [ ] Dữ liệu gửi bằng cách nào: API, file Excel, SFTP hay email?
+- [ ] Đối tác lưu dữ liệu bao lâu?
+- [ ] Đã có hợp đồng/DPA với đối tác chưa?
 
 ---
 
-## E. Draft Data Flow
+## D. Checklist Hồ Sơ Cần Chuẩn Bị
+
+**Đối với case TRONG NƯỚC (Domestic):**
+
+| Nhóm hồ sơ | Cần chuẩn bị |
+|------------|--------------|
+| Thông tin đối tác | Tên pháp nhân, địa chỉ, GPKD |
+| Mục đích xử lý | Đối tác nhận dữ liệu để làm gì |
+| Danh sách dữ liệu | Field list + ý nghĩa từng field |
+| Cách truyền dữ liệu | API/file/SFTP/email |
+| Thời gian lưu trữ | Retention period |
+| Biện pháp bảo mật | Mã hóa, phân quyền, log truy cập |
+| Hợp đồng/DPA | Điều khoản bảo vệ dữ liệu cá nhân |
+
+**Đối với case NƯỚC NGOÀI (Cross-Border):**
+
+| Nhóm hồ sơ | Cần chuẩn bị |
+|------------|--------------|
+| Thông tin đối tác | Tên pháp nhân, quốc gia, company registration |
+| Mục đích xử lý | Đối tác nhận dữ liệu để làm gì |
+| Danh sách dữ liệu | Field list + ý nghĩa từng field |
+| Server location | Dữ liệu được lưu/xử lý ở đâu |
+| OTIA | Hồ sơ chuyển dữ liệu ra nước ngoài |
+
+---
+
+## E. Link Form Cần Điền
+
+**Đối với case TRONG NƯỚC:**
+Vui lòng điền **Form A – Domestic Data Sharing Intake Form** tại link:
+👉 https://company.form/privacy-domestic-intake
+
+**Đối với case NƯỚC NGOÀI:**
+Vui lòng điền **Form B – Cross-border Data Sharing Intake Form** tại link:
+👉 https://company.form/privacy-cross-border-intake
+
+---
+
+## F. Data Flow Diagram
 
 ```mermaid
 flowchart LR
-    Customer[Customer/User] -->|Personal Data| App[Company App]
-    App -->|Processing| Backend[Internal System]
-    Backend -->|Data Sharing| Partner[Partner/Vendor]
-    Partner -.->|Location TBD| Country[Country TBD]
-    
-    style Customer fill:#e1f5ff
-    style App fill:#fff4e1
-    style Backend fill:#ffe1f5
-    style Partner fill:#f5e1ff
-    style Country fill:#ff0000
+    Customer[Khách hàng] -->|Dữ liệu cá nhân| App[Company App]
+    App -->|API| Backend[Backend Vietnam]
+    Backend -->|Chia sẻ| Partner[Đối tác]
+    Partner -->|Lưu trữ| Server[Cần xác nhận]
 ```
 
 ---
 
-## F. Summary for Data Privacy Team
+## G. Tóm Tắt Request Gửi Data Privacy
 
-**Case Type:** TBD (need more information)  
-**Risk Level:** Medium to High  
-**Transfer Type:** TBD  
-**Next Steps:**  
-1. Request complete information from Biz team
-2. Review contracts and DPA
-3. Conduct risk assessment
-4. Determine if OTIA/cross-border assessment needed
+**Tóm tắt request gửi Data Privacy:**
 
-**Reviewer Notes:**  
-This case requires human review due to insufficient information. Please coordinate with Biz team to gather complete documentation.
+Team Biz/PO dự kiến chia sẻ dữ liệu cho [đối tác] để phục vụ mục đích [cần bổ sung]. Agent cần thêm thông tin về vị trí đối tác và loại dữ liệu cụ thể để phân loại chính xác đây là hoạt động chia sẻ dữ liệu cá nhân trong nước hay ra nước ngoài.
 
 ---
 
-## G. Suggested Email to Biz
+## H. Lưu Ý Quan Trọng
 
-**Subject:** Data Privacy Review - Additional Information Required
+⚠️ **Lưu ý:** Đây là phân loại sơ bộ từ Agent. Kết luận cuối cùng cần được Data Privacy team xác nhận chính thức sau khi review đầy đủ hồ sơ.
 
-Dear Team,
-
-Thank you for submitting your data privacy review request. To proceed with the assessment, we need the following information:
-
-**Required Information:**
-- Business purpose and detailed use case
-- Complete list of personal data categories
-- Recipient/vendor details (name, location, country)
-- Data transfer mechanism
-- Data retention period
-- Security measures
-
-**Required Documents:**
-- Draft contract or MSA
-- DPA or data protection clauses
-- Evidence of user consent/notice (if applicable)
-
-Please provide the above information at your earliest convenience so we can complete the privacy assessment.
-
-If you have any questions, please don't hesitate to reach out.
-
-Best regards,  
-Data Privacy Team
-
----
-
-**Important:** This analysis is preliminary. Final approval requires human review by the Data Privacy legal team.
+**Giải thích thuật ngữ:**
+- **API**: Kênh kỹ thuật để hai hệ thống gửi dữ liệu cho nhau
+- **SFTP**: Cách gửi file qua kênh bảo mật
+- **DPA**: Data Processing Agreement - thỏa thuận xử lý/bảo vệ dữ liệu cá nhân
+- **OTIA**: Offshore Transfer Impact Assessment - đánh giá tác động chuyển dữ liệu ra nước ngoài
 """
     
     async def analyze_case(self, message: str) -> str:
