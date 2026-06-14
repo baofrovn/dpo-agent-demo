@@ -28,9 +28,10 @@ services:
       - "8000:8000"
     environment:
       - LLM_API_KEY=${LLM_API_KEY:-}
-      - LLM_MODEL=${LLM_MODEL:-gpt-4o-mini}
       - LLM_BASE_URL=${LLM_BASE_URL:-https://api.openai.com/v1}
       - DATABASE_URL=postgresql://privacy_agent:privacy_agent_pass@postgres:5432/privacy_agent_db
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-1440}
     depends_on:
       postgres:
         condition: service_healthy

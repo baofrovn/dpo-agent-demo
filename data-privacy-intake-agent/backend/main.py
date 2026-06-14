@@ -8,6 +8,8 @@ from agent_service import AgentService
 from database import get_db, init_db, close_db
 from sqlalchemy.ext.asyncio import AsyncSession
 import crud
+from routers import auth
+from routers import rules as rules_router
 
 app = FastAPI(
     title="Data Privacy Intake Agent API",
@@ -23,6 +25,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include routers
+app.include_router(auth.router)
+app.include_router(rules_router.router)
+
 agent_service = AgentService()
 
 
@@ -35,6 +41,7 @@ async def startup_event():
     async for db in get_db():
         await crud.init_default_settings(db)
         await crud.init_default_agent_config(db)
+        await crud.init_default_user(db)
         break
 
 
@@ -119,7 +126,8 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
         answer = await agent_service.analyze_case(
             request.message,
             config,
-            conversation_history=request.conversation_history
+            conversation_history=request.conversation_history,
+            db=db
         )
         return ChatResponse(answer=answer)
     except Exception as e:

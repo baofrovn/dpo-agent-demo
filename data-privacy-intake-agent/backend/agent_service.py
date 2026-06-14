@@ -1,21 +1,40 @@
 import os
 import httpx
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from dotenv import load_dotenv
+from sqlalchemy.ext.asyncio import AsyncSession
 
 load_dotenv()
 
 
 class AgentService:
     def __init__(self):
-        self.api_key = os.getenv("LLM_API_KEY", "")
-        self.model = os.getenv("LLM_MODEL", "gpt-4o-mini")
-        self.base_url = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
+        self._model = "qwen/qwen3-5-27b"  # Default model, will be overridden from DB
         self.base_path = Path(__file__).parent
         
         self.system_prompt = self._load_system_prompt()
         self.knowledge_base = self._load_knowledge_base()
+    
+    @property
+    def api_key(self):
+        """Read API key dynamically from environment"""
+        return os.getenv("LLM_API_KEY", "")
+    
+    @property
+    def base_url(self):
+        """Read base URL dynamically from environment"""
+        return os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
+    
+    @property
+    def model(self):
+        """Get current model"""
+        return self._model
+    
+    @model.setter
+    def model(self, value):
+        """Set model"""
+        self._model = value
     
     def reload_config(self):
         """Reload configuration files"""
@@ -80,6 +99,103 @@ class AgentService:
                 combined_knowledge += f"\n## {file}\n\n{content}\n"
         
         return combined_knowledge
+    
+    async def _load_rules_from_db(self, db: AsyncSession) -> str:
+        """Load rules from database and format them into knowledge base"""
+        try:
+            import crud_rules
+            
+            combined_knowledge = "\n\n# KNOWLEDGE BASE (FROM DATABASE)\n\n"
+            
+            # Load checklist items
+            checklist_items = await crud_rules.get_checklist_items(db, is_active=True)
+            
+            if checklist_items:
+                # Group by category
+                dpa_items = [item for item in checklist_items if item.category.value == "DPA"]
+                otia_items = [item for item in checklist_items if item.category.value == "OTIA"]
+                
+                # Format DPA checklist
+                if dpa_items:
+                    combined_knowledge += "\n## DPA Checklist (Domestic Data Sharing)\n\n"
+                    for item in sorted(dpa_items, key=lambda x: x.display_order):
+                        combined_knowledge += f"### {item.item_number}. {item.title}\n\n"
+                        if item.description:
+                            combined_knowledge += f"{item.description}\n\n"
+                        if item.required_documents:
+                            combined_knowledge += f"**Required Documents:** {item.required_documents}\n\n"
+                        if item.notes:
+                            combined_knowledge += f"**Notes:** {item.notes}\n\n"
+                
+                # Format OTIA checklist
+                if otia_items:
+                    combined_knowledge += "\n## OTIA Checklist (Cross-Border Data Transfer)\n\n"
+                    for item in sorted(otia_items, key=lambda x: x.display_order):
+                        combined_knowledge += f"### {item.item_number}. {item.title}\n\n"
+                        if item.description:
+                            combined_knowledge += f"{item.description}\n\n"
+                        if item.required_documents:
+                            combined_knowledge += f"**Required Documents:** {item.required_documents}\n\n"
+                        if item.notes:
+                            combined_knowledge += f"**Notes:** {item.notes}\n\n"
+            
+            # Load screening questions
+            screening_questions = await crud_rules.get_screening_questions(db, is_active=True)
+            
+            if screening_questions:
+                combined_knowledge += "\n## Screening Questions\n\n"
+                combined_knowledge += "Use these questions to gather information from the user:\n\n"
+                for question in sorted(screening_questions, key=lambda x: x.display_order):
+                    combined_knowledge += f"- {question.question_text}\n"
+                combined_knowledge += "\n"
+            
+            # Load sensitive keywords
+            sensitive_keywords = await crud_rules.get_sensitive_keywords(db, is_active=True)
+            
+            if sensitive_keywords:
+                combined_knowledge += "\n## Sensitive Data Keywords\n\n"
+                combined_knowledge += "Watch for these keywords that indicate sensitive data:\n\n"
+                
+                # Group by category
+                categories = {}
+                for keyword in sensitive_keywords:
+                    cat = keyword.category or "General"
+                    if cat not in categories:
+                        categories[cat] = []
+                    categories[cat].append(keyword.keyword)
+                
+                for category, keywords in categories.items():
+                    combined_knowledge += f"**{category}:** {', '.join(keywords)}\n\n"
+            
+            # Still load skills from markdown files (complex instructions)
+            skill_files = [
+                "skills/intake_skill.md",
+                "skills/privacy_classification_skill.md",
+                "skills/transfer_classification_skill.md",
+                "skills/checklist_generation_skill.md",
+                "skills/data_flow_generation_skill.md",
+                "skills/privacy_summary_skill.md",
+                "skills/email_generation_skill.md",
+            ]
+            
+            combined_knowledge += "\n\n# SKILLS AND INSTRUCTIONS\n\n"
+            
+            for file in skill_files:
+                content = self._load_file(file)
+                if content:
+                    combined_knowledge += f"\n## {file}\n\n{content}\n"
+            
+            # Load privacy rules from markdown (still useful for definitions)
+            privacy_rules_content = self._load_file("knowledge/privacy_rules.md")
+            if privacy_rules_content:
+                combined_knowledge = f"\n## Privacy Rules and Definitions\n\n{privacy_rules_content}\n" + combined_knowledge
+            
+            return combined_knowledge
+            
+        except Exception as e:
+            print(f"Warning: Could not load rules from database: {e}")
+            # Fall back to markdown files
+            return self._load_knowledge_base()
     
     def get_system_prompt(self) -> str:
         """Get current system prompt"""
@@ -177,14 +293,20 @@ class AgentService:
         
         return context
     
-    async def call_llm(self, user_message: str, config: Optional[dict] = None, conversation_history: Optional[list] = None) -> str:
+    async def call_llm(self, user_message: str, config: Optional[dict] = None, conversation_history: Optional[list] = None, db: Optional[AsyncSession] = None) -> str:
         """Call LLM API with system prompt, conversation history, and user message"""
         if not self.api_key:
             return self._get_mock_response(user_message, config)
         
         try:
+            # Try to load rules from DB if session provided, otherwise use markdown
+            if db:
+                knowledge_base = await self._load_rules_from_db(db)
+            else:
+                knowledge_base = self.knowledge_base
+            
             config_context = self._build_config_context(config)
-            full_system_prompt = f"{self.system_prompt}\n\n{self.knowledge_base}{config_context}"
+            full_system_prompt = f"{self.system_prompt}\n\n{knowledge_base}{config_context}"
             
             # Build messages array with conversation history
             messages = [{"role": "system", "content": full_system_prompt}]
@@ -201,23 +323,52 @@ class AgentService:
             messages.append({"role": "user", "content": user_message})
             
             async with httpx.AsyncClient(timeout=120.0) as client:
-                response = await client.post(
-                    f"{self.base_url}/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {self.api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "model": self.model,
-                        "messages": messages,
-                        "temperature": 0.7,
-                        "max_tokens": 4000,
-                    }
-                )
-                
-                response.raise_for_status()
-                result = response.json()
-                return result["choices"][0]["message"]["content"]
+                # Check if model is openai/gpt-5 which uses different endpoint
+                if self.model.startswith("openai/"):
+                    # Use /responses endpoint for OpenAI models on VNG Cloud
+                    response = await client.post(
+                        f"{self.base_url}/responses",
+                        headers={
+                            "Authorization": f"Bearer {self.api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": self.model,
+                            "input": messages,
+                            "max_output_tokens": 4000,
+                            "reasoning": {"effort": "medium"}
+                        }
+                    )
+                    response.raise_for_status()
+                    result = response.json()
+                    # Extract text from responses format
+                    output = result.get("output", [])
+                    for item in output:
+                        if item.get("type") == "message" and item.get("role") == "assistant":
+                            content_list = item.get("content", [])
+                            for content in content_list:
+                                if content.get("type") == "output_text":
+                                    return content.get("text", "")
+                    return self._get_mock_response(user_message, config)
+                else:
+                    # Use standard /chat/completions for other models (qwen, etc.)
+                    response = await client.post(
+                        f"{self.base_url}/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {self.api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": self.model,
+                            "messages": messages,
+                            "temperature": 0.7,
+                            "max_tokens": 4096,
+                            "top_p": 0.95
+                        }
+                    )
+                    response.raise_for_status()
+                    result = response.json()
+                    return result["choices"][0]["message"]["content"]
                 
         except Exception as e:
             print(f"Error calling LLM API: {e}")
@@ -346,6 +497,6 @@ Team Biz/PO dự kiến chia sẻ dữ liệu cho [đối tác] để phục v�
 - **OTIA**: Offshore Transfer Impact Assessment - đánh giá tác động chuyển dữ liệu ra nước ngoài
 """
     
-    async def analyze_case(self, message: str, config: Optional[dict] = None, conversation_history: Optional[list] = None) -> str:
+    async def analyze_case(self, message: str, config: Optional[dict] = None, conversation_history: Optional[list] = None, db: Optional[AsyncSession] = None) -> str:
         """Main entry point for case analysis with conversation history support"""
-        return await self.call_llm(message, config, conversation_history)
+        return await self.call_llm(message, config, conversation_history, db)

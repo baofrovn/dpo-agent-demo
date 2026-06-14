@@ -1,8 +1,9 @@
 import json
 from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from models import Session, Settings, AgentConfig
+from models import Session, Settings, AgentConfig, User, ChecklistItem, ScreeningQuestion, SensitiveKeyword, RuleAuditLog
 from typing import Optional, List
+from auth import get_password_hash
 
 
 # Session CRUD operations
@@ -98,16 +99,11 @@ async def get_all_settings(db: AsyncSession) -> dict:
 async def init_default_settings(db: AsyncSession):
     """Initialize default settings if not exists"""
     defaults = {
-        "model": "gpt-4o-mini",
+        "model": "qwen/qwen3-5-27b",
         "custom_instructions": "",
         "available_models": json.dumps([
-            {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "provider": "openai"},
-            {"id": "gpt-4o", "name": "GPT-4o", "provider": "openai"},
-            {"id": "gpt-4-turbo", "name": "GPT-4 Turbo", "provider": "openai"},
-            {"id": "gemini-1.5-pro", "name": "Gemini 1.5 Pro", "provider": "google"},
-            {"id": "gemini-1.5-flash", "name": "Gemini 1.5 Flash", "provider": "google"},
-            {"id": "qwen-max", "name": "Qwen Max", "provider": "alibaba"},
-            {"id": "qwen-plus", "name": "Qwen Plus", "provider": "alibaba"}
+            {"id": "qwen/qwen3-5-27b", "name": "Qwen 3.5 27B", "provider": "VNG Cloud"},
+            {"id": "openai/gpt-5", "name": "GPT-5", "provider": "VNG Cloud"}
         ])
     }
     
@@ -163,3 +159,45 @@ async def init_default_agent_config(db: AsyncSession):
             ]
         }
         await set_agent_config(db, default_config)
+
+
+# User CRUD operations
+async def get_user_by_username(db: AsyncSession, username: str) -> Optional[User]:
+    """Get a user by username"""
+    result = await db.execute(
+        select(User).where(User.username == username)
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_user_by_id(db: AsyncSession, user_id: str) -> Optional[User]:
+    """Get a user by ID"""
+    result = await db.execute(
+        select(User).where(User.id == user_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def create_user(db: AsyncSession, username: str, password: str, is_active: bool = True) -> User:
+    """Create a new user"""
+    password_hash = get_password_hash(password)
+    user = User(username=username, password_hash=password_hash, is_active=is_active)
+    db.add(user)
+    await db.flush()
+    await db.refresh(user)
+    return user
+
+
+async def get_all_users(db: AsyncSession) -> List[User]:
+    """Get all users"""
+    result = await db.execute(select(User).order_by(User.created_at.desc()))
+    return result.scalars().all()
+
+
+async def init_default_user(db: AsyncSession):
+    """Initialize default admin user if not exists"""
+    existing = await get_user_by_username(db, "admin")
+    if existing is None:
+        await create_user(db, "admin", "admin123", is_active=True)
+        await db.commit()
+

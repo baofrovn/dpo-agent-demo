@@ -63,18 +63,6 @@ st.markdown("""
         color: white;
         margin-bottom: 0.5rem;
     }
-    
-    /* Settings section */
-    .settings-section {
-        background-color: rgba(240, 242, 246, 0.5);
-        padding: 1rem;
-        border-radius: 0.5rem;
-        margin-bottom: 1rem;
-    }
-    
-    [data-theme="dark"] .settings-section {
-        background-color: rgba(49, 51, 63, 0.3);
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -256,26 +244,7 @@ def get_settings():
             return response.json()
     except:
         pass
-    return {"model": "gpt-4o-mini", "custom_instructions": "", "available_models": []}
-
-
-def update_settings(model: str = None, custom_instructions: str = None):
-    """Update settings"""
-    try:
-        data = {}
-        if model is not None:
-            data["model"] = model
-        if custom_instructions is not None:
-            data["custom_instructions"] = custom_instructions
-        
-        response = requests.put(
-            f"{BACKEND_URL}/settings",
-            json=data,
-            timeout=10
-        )
-        return response.status_code == 200
-    except:
-        return False
+    return {"model": "qwen/qwen3-5-27b", "custom_instructions": "", "available_models": []}
 
 
 def send_message(user_message: str, conversation_history: list):
@@ -324,55 +293,6 @@ if "just_created_session" not in st.session_state:
 # Sidebar
 with st.sidebar:
     st.title("🔒 Privacy Chatbot")
-    
-    # Settings section
-    with st.expander("⚙️ Settings", expanded=False):
-        st.markdown('<div class="settings-section">', unsafe_allow_html=True)
-        
-        # Model selector
-        st.subheader("🤖 Model Selection")
-        available_models = st.session_state.settings.get("available_models", [])
-        current_model = st.session_state.settings.get("model", "gpt-4o-mini")
-        
-        model_options = {m["id"]: f"{m['name']} ({m['provider']})" for m in available_models}
-        selected_model = st.selectbox(
-            "Select AI Model:",
-            options=list(model_options.keys()),
-            format_func=lambda x: model_options[x],
-            index=list(model_options.keys()).index(current_model) if current_model in model_options else 0,
-            key="model_selector"
-        )
-        
-        if st.button("💾 Save Model", use_container_width=True):
-            if update_settings(model=selected_model):
-                st.session_state.settings["model"] = selected_model
-                st.success("✅ Model updated!")
-                st.rerun()
-            else:
-                st.error("❌ Failed to update model")
-        
-        st.divider()
-        
-        # Custom instructions
-        st.subheader("📝 Custom Instructions")
-        custom_instructions = st.text_area(
-            "Instructions for the agent (applied to every message):",
-            value=st.session_state.settings.get("custom_instructions", ""),
-            height=150,
-            placeholder="Example: Always respond in a formal tone. Focus on compliance requirements...",
-            key="custom_instructions_input"
-        )
-        
-        if st.button("💾 Save Instructions", use_container_width=True):
-            if update_settings(custom_instructions=custom_instructions):
-                st.session_state.settings["custom_instructions"] = custom_instructions
-                st.success("✅ Instructions updated!")
-            else:
-                st.error("❌ Failed to update instructions")
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.divider()
     
     # Session management
     st.subheader("💬 Chat Sessions")
@@ -516,7 +436,7 @@ if not st.session_state.messages:
             <li>Cho đối tác nào?</li>
             <li>Mục đích là gì?</li>
         </ul>
-        <p><em>💡 Tip: Chọn Demo Case từ sidebar hoặc setup Custom Instructions trong Settings</em></p>
+        <p><em>💡 Tip: Chọn Demo Case từ sidebar để test nhanh</em></p>
     </div>
     """, unsafe_allow_html=True)
 else:
