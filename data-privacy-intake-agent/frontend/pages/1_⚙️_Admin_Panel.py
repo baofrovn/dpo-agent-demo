@@ -24,22 +24,69 @@ st.set_page_config(
 # Initialize auth
 auth_helper.init_session_state()
 
-# Custom CSS
+# Custom CSS with improved dark mode support
 st.markdown("""
 <style>
+    /* Light mode - default */
     .rule-card {
         border: 1px solid #ddd;
         border-radius: 8px;
         padding: 15px;
         margin-bottom: 10px;
         background-color: #f9f9f9;
+        transition: all 0.3s ease;
     }
     
+    .rule-card h4 {
+        margin-top: 10px;
+        color: #1a1a1a;
+    }
+    
+    .rule-card p {
+        color: #333;
+    }
+    
+    .rule-card small {
+        color: #666;
+    }
+    
+    /* Dark mode - multiple approaches for better compatibility */
+    @media (prefers-color-scheme: dark) {
+        .rule-card {
+            background-color: rgba(49, 51, 63, 0.5) !important;
+            border-color: #444 !important;
+        }
+        
+        .rule-card h4,
+        .rule-card p,
+        .rule-card small,
+        .rule-card b {
+            color: #e0e0e0 !important;
+        }
+        
+        .rule-card a {
+            color: #58a6ff !important;
+        }
+    }
+    
+    /* Streamlit dark theme selectors */
     [data-theme="dark"] .rule-card {
-        background-color: rgba(49, 51, 63, 0.5);
-        border-color: #444;
+        background-color: rgba(49, 51, 63, 0.5) !important;
+        border-color: #444 !important;
     }
     
+    [data-theme="dark"] .rule-card h4,
+    [data-theme="dark"] .rule-card p,
+    [data-theme="dark"] .rule-card small,
+    [data-theme="dark"] .rule-card b {
+        color: #e0e0e0 !important;
+    }
+    
+    [data-theme="dark"] .rule-card a {
+        color: #58a6ff !important;
+    }
+    
+    /* Status badges */
     .status-badge {
         padding: 4px 12px;
         border-radius: 12px;
@@ -78,6 +125,7 @@ with col2:
 # Tabs
 tabs = st.tabs([
     "⚙️ General Settings",
+    "🔗 Form Links",
     "📋 Checklist Items", 
     "❓ Screening Questions", 
     "🔑 Sensitive Keywords",
@@ -132,22 +180,7 @@ with tabs[0]:
                 help="Tên công ty hiển thị trong phân tích"
             )
             
-            st.divider()
-            st.subheader("🔗 Form Links")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                form_a_link = st.text_input(
-                    "Form A Link (Domestic)",
-                    value=config.get("form_a_link", ""),
-                    help="Link form cho chia sẻ dữ liệu trong nước"
-                )
-            with col2:
-                form_b_link = st.text_input(
-                    "Form B Link (Cross-border)",
-                    value=config.get("form_b_link", ""),
-                    help="Link form cho chia sẻ dữ liệu ra nước ngoài"
-                )
+            st.info("📝 **Note:** Form links are now managed in the 'Form Links' tab for more flexibility.")
             
             st.divider()
             st.subheader("🤖 AI Model Configuration")
@@ -192,9 +225,7 @@ with tabs[0]:
                 if st.form_submit_button("💾 Save Settings", use_container_width=True, type="primary"):
                     # Update config
                     config_data = {
-                        "company_name": company_name,
-                        "form_a_link": form_a_link,
-                        "form_b_link": form_b_link
+                        "company_name": company_name
                     }
                     config_result = api_request("PUT", "/config", data=config_data)
                     
@@ -214,9 +245,225 @@ with tabs[0]:
             with col2:
                 if st.form_submit_button("🔄 Reset to Default", use_container_width=True):
                     st.warning("Reset functionality coming soon")
+        
+        st.divider()
+        
+        # Change Password Section
+        st.subheader("🔐 Change Password")
+        with st.expander("Change Admin Password", expanded=False):
+            with st.form("change_password_form"):
+                current_password = st.text_input(
+                    "Current Password",
+                    type="password",
+                    help="Enter your current password"
+                )
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    new_password = st.text_input(
+                        "New Password",
+                        type="password",
+                        help="At least 6 characters"
+                    )
+                with col2:
+                    confirm_password = st.text_input(
+                        "Confirm New Password",
+                        type="password",
+                        help="Re-enter new password"
+                    )
+                
+                if st.form_submit_button("🔒 Change Password", use_container_width=True, type="primary"):
+                    if not current_password or not new_password or not confirm_password:
+                        st.error("❌ Please fill in all fields")
+                    elif new_password != confirm_password:
+                        st.error("❌ New passwords do not match")
+                    elif len(new_password) < 6:
+                        st.error("❌ New password must be at least 6 characters")
+                    else:
+                        # Call change password API
+                        change_pw_data = {
+                            "current_password": current_password,
+                            "new_password": new_password
+                        }
+                        result = api_request("POST", "/auth/change-password", data=change_pw_data)
+                        
+                        if result:
+                            st.success("✅ Password changed successfully!")
+                            st.info("Please log in again with your new password")
+                        else:
+                            st.error("❌ Failed to change password. Check if current password is correct.")
 
-# TAB 1: Checklist Items
+# TAB 1: Form Links
 with tabs[1]:
+    st.header("🔗 Manage Form Links")
+    
+    # Category filter
+    col1, col2, col3 = st.columns([2, 2, 4])
+    with col1:
+        category_filter = st.selectbox(
+            "Filter by Category",
+            ["All", "DOMESTIC", "CROSS_BORDER", "GENERAL"],
+            key="formlink_category_filter"
+        )
+    with col2:
+        status_filter = st.selectbox(
+            "Filter by Status",
+            ["Active Only", "Inactive Only", "All"],
+            key="formlink_status_filter"
+        )
+    
+    # Load form links
+    params = {}
+    if category_filter != "All":
+        params["category"] = category_filter
+    if status_filter != "All":
+        params["is_active"] = status_filter == "Active Only"
+    
+    links = api_request("GET", "/rules/form-links", params=params)
+    
+    if links is not None:
+        st.info(f"Found {len(links)} form links")
+        
+        # Add new link button
+        with st.expander("➕ Add New Form Link", expanded=len(links) == 0):
+            with st.form("add_form_link"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    new_name = st.text_input("Form Name", placeholder="e.g., Form A - Domestic Data Sharing")
+                    new_url = st.text_input("Form URL", placeholder="https://company.form/...")
+                    new_category = st.selectbox("Category", ["DOMESTIC", "CROSS_BORDER", "GENERAL"])
+                with col2:
+                    new_description = st.text_area("Description", placeholder="When to use this form")
+                    new_conditions = st.text_area("Conditions", placeholder="Specific conditions for using this form")
+                    new_display_order = st.number_input("Display Order", min_value=0, value=len(links))
+                
+                if st.form_submit_button("Create Form Link", use_container_width=True):
+                    data = {
+                        "name": new_name,
+                        "url": new_url,
+                        "description": new_description,
+                        "category": new_category,
+                        "conditions": new_conditions,
+                        "is_active": True,
+                        "display_order": new_display_order
+                    }
+                    
+                    result = api_request("POST", "/rules/form-links", data=data)
+                    if result:
+                        st.success("✅ Form link created!")
+                        st.rerun()
+        
+        st.divider()
+        
+        # Display links
+        for link in links:
+            with st.container():
+                col1, col2, col3 = st.columns([5, 1, 1])
+                
+                with col1:
+                    status_class = "status-active" if link["is_active"] else "status-inactive"
+                    status_text = "Active" if link["is_active"] else "Inactive"
+                    
+                    st.markdown(f"""
+                    <div class="rule-card">
+                        <span class="status-badge {status_class}">{status_text}</span>
+                        <span class="status-badge" style="background-color: #007bff; color: white; margin-left: 8px;">{link['category']}</span>
+                        <h4 style="margin-top: 10px;">{link['name']}</h4>
+                        <p><b>URL:</b> <a href="{link['url']}" target="_blank">{link['url']}</a></p>
+                        {f'<p><b>Description:</b> {link["description"]}</p>' if link.get('description') else ''}
+                        {f'<p><b>Conditions:</b> {link["conditions"]}</p>' if link.get('conditions') else ''}
+                        <small><b>Display Order:</b> {link['display_order']}</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    if st.button("✏️ Edit", key=f"edit_formlink_{link['id']}", use_container_width=True):
+                        st.session_state[f"editing_formlink_{link['id']}"] = True
+                        st.rerun()
+                
+                with col3:
+                    if st.button("🗑️ Delete", key=f"delete_formlink_{link['id']}", use_container_width=True):
+                        if api_request("DELETE", f"/rules/form-links/{link['id']}"):
+                            st.success("Deleted!")
+                            st.rerun()
+                
+                # Edit form
+                if st.session_state.get(f"editing_formlink_{link['id']}", False):
+                    with st.form(f"edit_form_{link['id']}"):
+                        st.subheader(f"Edit: {link['name']}")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            edit_name = st.text_input("Form Name", value=link['name'])
+                            edit_url = st.text_input("Form URL", value=link['url'])
+                            edit_category = st.selectbox("Category", ["DOMESTIC", "CROSS_BORDER", "GENERAL"], 
+                                                        index=["DOMESTIC", "CROSS_BORDER", "GENERAL"].index(link['category']))
+                        with col2:
+                            edit_description = st.text_area("Description", value=link.get('description', '') or '')
+                            edit_conditions = st.text_area("Conditions", value=link.get('conditions', '') or '')
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            edit_display_order = st.number_input("Display Order", value=link['display_order'])
+                        with col2:
+                            edit_is_active = st.checkbox("Active", value=link['is_active'])
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.form_submit_button("💾 Save Changes", use_container_width=True):
+                                update_data = {
+                                    "name": edit_name,
+                                    "url": edit_url,
+                                    "description": edit_description,
+                                    "category": edit_category,
+                                    "conditions": edit_conditions,
+                                    "is_active": edit_is_active,
+                                    "display_order": edit_display_order
+                                }
+                                
+                                if api_request("PUT", f"/rules/form-links/{link['id']}", data=update_data):
+                                    st.success("✅ Updated!")
+                                    del st.session_state[f"editing_formlink_{link['id']}"]
+                                    st.rerun()
+                        
+                        with col2:
+                            if st.form_submit_button("❌ Cancel", use_container_width=True):
+                                del st.session_state[f"editing_formlink_{link['id']}"]
+                                st.rerun()
+    else:
+        st.error("❌ Failed to load form links. Please check if the backend is running.")
+        st.info("You can still try to add a new form link:")
+        
+        # Show add form even on error
+        with st.expander("➕ Add New Form Link", expanded=True):
+            with st.form("add_form_link_error"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    new_name = st.text_input("Form Name", placeholder="e.g., Form A - Domestic Data Sharing")
+                    new_url = st.text_input("Form URL", placeholder="https://company.form/...")
+                    new_category = st.selectbox("Category", ["DOMESTIC", "CROSS_BORDER", "GENERAL"])
+                with col2:
+                    new_description = st.text_area("Description", placeholder="When to use this form")
+                    new_conditions = st.text_area("Conditions", placeholder="Specific conditions for using this form")
+                    new_display_order = st.number_input("Display Order", min_value=0, value=0)
+                
+                if st.form_submit_button("Create Form Link", use_container_width=True):
+                    data = {
+                        "name": new_name,
+                        "url": new_url,
+                        "description": new_description,
+                        "category": new_category,
+                        "conditions": new_conditions,
+                        "is_active": True,
+                        "display_order": new_display_order
+                    }
+                    
+                    result = api_request("POST", "/rules/form-links", data=data)
+                    if result:
+                        st.success("✅ Form link created!")
+                        st.rerun()
+
+# TAB 2: Checklist Items
+with tabs[2]:
     st.header("📋 Manage Checklist Items")
     
     # Category filter
@@ -243,11 +490,11 @@ with tabs[1]:
     
     items = api_request("GET", "/rules/checklist", params=params)
     
-    if items:
+    if items is not None:
         st.info(f"Found {len(items)} checklist items")
         
         # Add new item button
-        with st.expander("➕ Add New Checklist Item", expanded=False):
+        with st.expander("➕ Add New Checklist Item", expanded=len(items) == 0):
             with st.form("add_checklist_item"):
                 col1, col2 = st.columns(2)
                 with col1:
@@ -354,9 +601,44 @@ with tabs[1]:
                             if st.form_submit_button("❌ Cancel", use_container_width=True):
                                 del st.session_state[f"editing_checklist_{item['id']}"]
                                 st.rerun()
+    else:
+        st.error("❌ Failed to load checklist items. Please check if the backend is running.")
+        st.info("You can still try to add a new item:")
+        
+        # Show add form even on error
+        with st.expander("➕ Add New Checklist Item", expanded=True):
+            with st.form("add_checklist_item_error"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    new_category = st.selectbox("Category", ["DPA", "OTIA", "GENERAL"])
+                    new_item_number = st.text_input("Item Number", placeholder="e.g., 1, 2a, 2b")
+                    new_title = st.text_input("Title", placeholder="Checklist item title")
+                with col2:
+                    new_description = st.text_area("Description", placeholder="Item description")
+                    new_required_docs = st.text_area("Required Documents", placeholder="Documents needed")
+                    new_notes = st.text_area("Notes", placeholder="Additional notes")
+                
+                new_display_order = st.number_input("Display Order", min_value=0, value=0)
+                
+                if st.form_submit_button("Create Item", use_container_width=True):
+                    data = {
+                        "category": new_category,
+                        "item_number": new_item_number,
+                        "title": new_title,
+                        "description": new_description,
+                        "required_documents": new_required_docs,
+                        "notes": new_notes,
+                        "is_active": True,
+                        "display_order": new_display_order
+                    }
+                    
+                    result = api_request("POST", "/rules/checklist", data=data)
+                    if result:
+                        st.success("✅ Checklist item created!")
+                        st.rerun()
 
-# TAB 2: Screening Questions
-with tabs[2]:
+# TAB 3: Screening Questions
+with tabs[3]:
     st.header("❓ Manage Screening Questions")
     
     questions = api_request("GET", "/rules/questions", params={"is_active": True})
@@ -442,8 +724,8 @@ with tabs[2]:
                             del st.session_state[f"editing_question_{q['id']}"]
                             st.rerun()
 
-# TAB 3: Sensitive Keywords
-with tabs[3]:
+# TAB 4: Sensitive Keywords
+with tabs[4]:
     st.header("🔑 Manage Sensitive Keywords")
     
     keywords = api_request("GET", "/rules/keywords", params={"is_active": True})
@@ -539,8 +821,8 @@ with tabs[3]:
                                 del st.session_state[f"editing_keyword_{kw['id']}"]
                                 st.rerun()
 
-# TAB 4: Audit Logs
-with tabs[4]:
+# TAB 5: Audit Logs
+with tabs[5]:
     st.header("📜 Audit Logs")
     
     col1, col2 = st.columns(2)
@@ -592,8 +874,8 @@ with tabs[4]:
                     
                     st.divider()
 
-# TAB 5: Legacy System Prompt
-with tabs[5]:
+# TAB 6: Legacy System Prompt
+with tabs[6]:
     st.header("⚙️ Legacy: System Prompt & Knowledge Files")
     st.caption("For backward compatibility - direct file editing")
     
@@ -610,9 +892,14 @@ with st.sidebar:
     st.markdown("""
     ### General Settings
     - Configure company name
-    - Set form links (domestic/cross-border)
     - Select AI model
     - Add custom instructions
+    
+    ### Form Links
+    - Create unlimited intake form links
+    - Categories: Domestic, Cross-border, General
+    - Add descriptions and conditions
+    - Reorder and manage active status
     
     ### Checklist Items
     - Manage DPA and OTIA checklist items

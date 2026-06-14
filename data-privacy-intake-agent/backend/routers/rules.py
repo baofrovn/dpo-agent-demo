@@ -12,6 +12,7 @@ from schemas.rules import (
     ChecklistItemCreate, ChecklistItemUpdate, ChecklistItemResponse, ChecklistItemReorder,
     ScreeningQuestionCreate, ScreeningQuestionUpdate, ScreeningQuestionResponse, ScreeningQuestionReorder,
     SensitiveKeywordCreate, SensitiveKeywordUpdate, SensitiveKeywordResponse, SensitiveKeywordBulkImport,
+    FormLinkCreate, FormLinkUpdate, FormLinkResponse, FormLinkReorder,
     AuditLogResponse
 )
 import crud_rules
@@ -339,6 +340,222 @@ async def bulk_import_keywords(
     try:
         count = await crud_rules.bulk_import_keywords(db, import_data.keywords, current_user.id)
         return {"status": "ok", "imported": count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Intake Form Links Endpoints
+@router.get("/form-links", response_model=List[FormLinkResponse])
+async def list_form_links(
+    category: Optional[str] = Query(None, description="Filter by category: DOMESTIC, CROSS_BORDER, GENERAL"),
+    is_active: Optional[bool] = Query(None, description="Filter by active status"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """List all form links with optional filters"""
+    try:
+        links = await crud_rules.get_form_links(db, category, is_active)
+        return [link.to_dict() for link in links]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/form-links/{link_id}", response_model=FormLinkResponse)
+async def get_form_link(
+    link_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get a single form link"""
+    try:
+        link = await crud_rules.get_form_link(db, link_id)
+        if not link:
+            raise HTTPException(status_code=404, detail="Form link not found")
+        return link.to_dict()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/form-links", response_model=FormLinkResponse, status_code=status.HTTP_201_CREATED)
+async def create_form_link(
+    link_data: FormLinkCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Create a new form link"""
+    try:
+        link = await crud_rules.create_form_link(
+            db,
+            link_data.model_dump(),
+            current_user.id
+        )
+        return link.to_dict()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/form-links/{link_id}", response_model=FormLinkResponse)
+async def update_form_link(
+    link_id: str,
+    link_data: FormLinkUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Update a form link"""
+    try:
+        link = await crud_rules.update_form_link(
+            db,
+            link_id,
+            link_data.model_dump(exclude_unset=True),
+            current_user.id
+        )
+        if not link:
+            raise HTTPException(status_code=404, detail="Form link not found")
+        return link.to_dict()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/form-links/{link_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_form_link(
+    link_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Soft delete a form link"""
+    try:
+        success = await crud_rules.delete_form_link(db, link_id, current_user.id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Form link not found")
+        return None
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/form-links/reorder")
+async def reorder_form_links(
+    reorder_data: FormLinkReorder,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Reorder form links"""
+    try:
+        await crud_rules.reorder_form_links(db, reorder_data.items, current_user.id)
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Intake Form Links Endpoints
+@router.get("/form-links", response_model=List[FormLinkResponse])
+async def list_form_links(
+    category: Optional[str] = Query(None, description="Filter by category: DOMESTIC, CROSS_BORDER, GENERAL"),
+    is_active: Optional[bool] = Query(None, description="Filter by active status"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """List all form links with optional filters"""
+    try:
+        links = await crud_rules.get_form_links(db, category, is_active)
+        return [link.to_dict() for link in links]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/form-links/{link_id}", response_model=FormLinkResponse)
+async def get_form_link(
+    link_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get a single form link"""
+    try:
+        link = await crud_rules.get_form_link(db, link_id)
+        if not link:
+            raise HTTPException(status_code=404, detail="Form link not found")
+        return link.to_dict()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/form-links", response_model=FormLinkResponse, status_code=status.HTTP_201_CREATED)
+async def create_form_link(
+    link_data: FormLinkCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Create a new form link"""
+    try:
+        link = await crud_rules.create_form_link(
+            db,
+            link_data.model_dump(),
+            current_user.id
+        )
+        return link.to_dict()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/form-links/{link_id}", response_model=FormLinkResponse)
+async def update_form_link(
+    link_id: str,
+    link_data: FormLinkUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Update a form link"""
+    try:
+        link = await crud_rules.update_form_link(
+            db,
+            link_id,
+            link_data.model_dump(exclude_unset=True),
+            current_user.id
+        )
+        if not link:
+            raise HTTPException(status_code=404, detail="Form link not found")
+        return link.to_dict()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/form-links/{link_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_form_link(
+    link_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Soft delete a form link"""
+    try:
+        success = await crud_rules.delete_form_link(db, link_id, current_user.id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Form link not found")
+        return None
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/form-links/reorder")
+async def reorder_form_links(
+    reorder_data: FormLinkReorder,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Reorder form links"""
+    try:
+        await crud_rules.reorder_form_links(db, reorder_data.items, current_user.id)
+        return {"status": "ok"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

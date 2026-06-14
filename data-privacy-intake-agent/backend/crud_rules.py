@@ -4,8 +4,8 @@ CRUD operations for rules (checklists, questions, keywords)
 from sqlalchemy import select, update, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from models import (
-    ChecklistItem, ScreeningQuestion, SensitiveKeyword, 
-    RuleAuditLog, ChecklistCategory, QuestionType, AuditAction
+    ChecklistItem, ScreeningQuestion, SensitiveKeyword, IntakeFormLink,
+    RuleAuditLog, ChecklistCategory, QuestionType, FormLinkCategory, AuditAction
 )
 from typing import Optional, List
 import json
@@ -151,6 +151,150 @@ async def reorder_checklist_items(
             await db.execute(
                 update(ChecklistItem)
                 .where(ChecklistItem.id == item_id)
+                .values(display_order=display_order)
+            )
+    
+    await db.flush()
+    return True
+
+
+# Intake Form Links CRUD
+async def get_form_links(
+    db: AsyncSession,
+    category: Optional[str] = None,
+    is_active: Optional[bool] = None
+) -> List[IntakeFormLink]:
+    """Get form links with optional filters"""
+    query = select(IntakeFormLink).order_by(IntakeFormLink.display_order)
+    
+    if category:
+        query = query.where(IntakeFormLink.category == FormLinkCategory[category])
+    if is_active is not None:
+        query = query.where(IntakeFormLink.is_active == is_active)
+    
+    result = await db.execute(query)
+    return result.scalars().all()
+
+
+async def get_form_link(db: AsyncSession, link_id: str) -> Optional[IntakeFormLink]:
+    """Get a single form link by ID"""
+    result = await db.execute(
+        select(IntakeFormLink).where(IntakeFormLink.id == link_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def create_form_link(
+    db: AsyncSession,
+    data: dict,
+    user_id: Optional[str] = None
+) -> IntakeFormLink:
+    """Create a new form link"""
+    link = IntakeFormLink(
+        name=data["name"],
+        url=data["url"],
+        description=data.get("description"),
+        category=FormLinkCategory[data["category"]],
+        conditions=data.get("conditions"),
+        is_active=data.get("is_active", True),
+        display_order=data.get("display_order", 0),
+        created_by=user_id
+    )
+    db.add(link)
+    await db.flush()
+    await db.refresh(link)
+    
+    # Create audit log
+    if user_id:
+        await create_audit_log(
+            db, "intake_form_links", link.id, AuditAction.CREATE,
+            None, link.to_dict(), user_id
+        )
+    
+    return link
+
+
+async def update_form_link(
+    db: AsyncSession,
+    link_id: str,
+    data: dict,
+    user_id: Optional[str] = None
+) -> Optional[IntakeFormLink]:
+    """Update a form link"""
+    link = await get_form_link(db, link_id)
+    if not link:
+        return None
+    
+    old_value = link.to_dict()
+    
+    # Update fields
+    if "name" in data and data["name"] is not None:
+        link.name = data["name"]
+    if "url" in data and data["url"] is not None:
+        link.url = data["url"]
+    if "description" in data:
+        link.description = data["description"]
+    if "category" in data and data["category"]:
+        link.category = FormLinkCategory[data["category"]]
+    if "conditions" in data:
+        link.conditions = data["conditions"]
+    if "is_active" in data and data["is_active"] is not None:
+        link.is_active = data["is_active"]
+    if "display_order" in data and data["display_order"] is not None:
+        link.display_order = data["display_order"]
+    
+    await db.flush()
+    await db.refresh(link)
+    
+    # Create audit log
+    if user_id:
+        await create_audit_log(
+            db, "intake_form_links", link.id, AuditAction.UPDATE,
+            old_value, link.to_dict(), user_id
+        )
+    
+    return link
+
+
+async def delete_form_link(
+    db: AsyncSession,
+    link_id: str,
+    user_id: Optional[str] = None
+) -> bool:
+    """Soft delete a form link (set is_active = False)"""
+    link = await get_form_link(db, link_id)
+    if not link:
+        return False
+    
+    old_value = link.to_dict()
+    link.is_active = False
+    
+    await db.flush()
+    
+    # Create audit log
+    if user_id:
+        await create_audit_log(
+            db, "intake_form_links", link.id, AuditAction.DELETE,
+            old_value, {"is_active": False}, user_id
+        )
+    
+    return True
+
+
+async def reorder_form_links(
+    db: AsyncSession,
+    items: List[dict],
+    user_id: Optional[str] = None
+) -> bool:
+    """Reorder form links"""
+    for item_data in items:
+        link_id = item_data.get("id")
+        display_order = item_data.get("display_order")
+        
+        if link_id and display_order is not None:
+            await db.execute(
+                update(IntakeFormLink)
+                .where(IntakeFormLink.id == link_id)
                 .values(display_order=display_order)
             )
     

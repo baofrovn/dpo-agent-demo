@@ -100,6 +100,17 @@ class AgentService:
         
         return combined_knowledge
     
+    async def _load_form_links_from_db(self, db: AsyncSession) -> list:
+        """Load active form links from database"""
+        try:
+            import crud_rules
+            
+            form_links = await crud_rules.get_form_links(db, is_active=True)
+            return [link.to_dict() for link in form_links]
+        except Exception as e:
+            print(f"Warning: Could not load form links from database: {e}")
+            return []
+    
     async def _load_rules_from_db(self, db: AsyncSession) -> str:
         """Load rules from database and format them into knowledge base"""
         try:
@@ -263,33 +274,48 @@ class AgentService:
         
         return files
     
-    def _build_config_context(self, config: Optional[dict] = None) -> str:
-        """Build additional context from config"""
-        if not config:
-            return ""
-        
+    def _build_config_context(self, config: Optional[dict] = None, form_links: Optional[list] = None) -> str:
+        """Build additional context from config and form links"""
         context = "\n\n# DYNAMIC CONFIGURATION\n\n"
         
-        if config.get("company_name"):
-            context += f"**Company Name:** {config['company_name']}\n\n"
+        if config:
+            if config.get("company_name"):
+                context += f"**Company Name:** {config['company_name']}\n\n"
+            
+            if config.get("custom_instructions"):
+                context += f"**Custom Instructions:**\n{config['custom_instructions']}\n\n"
         
-        if config.get("form_a_link"):
-            context += f"**Form A Link (Domestic):** {config['form_a_link']}\n\n"
+        # Dynamic Form Links (replaces static form_a_link and form_b_link)
+        if form_links:
+            context += "## Available Intake Forms\n\n"
+            context += "Use these forms based on case classification:\n\n"
+            for link in form_links:
+                context += f"### {link['name']}\n"
+                context += f"- **URL:** {link['url']}\n"
+                context += f"- **Category:** {link['category']}\n"
+                if link.get('description'):
+                    context += f"- **Description:** {link['description']}\n"
+                if link.get('conditions'):
+                    context += f"- **When to use:** {link['conditions']}\n"
+                context += "\n"
         
-        if config.get("form_b_link"):
-            context += f"**Form B Link (Cross-Border):** {config['form_b_link']}\n\n"
+        # Legacy support: fall back to old format if form_links not provided
+        elif config:
+            if config.get("form_a_link"):
+                context += f"**Form A Link (Domestic):** {config['form_a_link']}\n\n"
+            
+            if config.get("form_b_link"):
+                context += f"**Form B Link (Cross-Border):** {config['form_b_link']}\n\n"
         
-        if config.get("custom_instructions"):
-            context += f"**Custom Instructions:**\n{config['custom_instructions']}\n\n"
-        
-        if config.get("screening_questions"):
-            context += "**Screening Questions to Ask:**\n"
-            for q in config["screening_questions"]:
-                context += f"- {q}\n"
-            context += "\n"
-        
-        if config.get("sensitive_data_keywords"):
-            context += f"**Sensitive Data Keywords:** {', '.join(config['sensitive_data_keywords'])}\n\n"
+        if config:
+            if config.get("screening_questions"):
+                context += "**Screening Questions to Ask:**\n"
+                for q in config["screening_questions"]:
+                    context += f"- {q}\n"
+                context += "\n"
+            
+            if config.get("sensitive_data_keywords"):
+                context += f"**Sensitive Data Keywords:** {', '.join(config['sensitive_data_keywords'])}\n\n"
         
         return context
     
@@ -305,7 +331,15 @@ class AgentService:
             else:
                 knowledge_base = self.knowledge_base
             
-            config_context = self._build_config_context(config)
+            # Load form links from DB
+            form_links = None
+            if db:
+                import crud_rules
+                form_links_objs = await crud_rules.get_form_links(db, is_active=True)
+                if form_links_objs:
+                    form_links = [link.to_dict() for link in form_links_objs]
+            
+            config_context = self._build_config_context(config, form_links)
             full_system_prompt = f"{self.system_prompt}\n\n{knowledge_base}{config_context}"
             
             # Build messages array with conversation history

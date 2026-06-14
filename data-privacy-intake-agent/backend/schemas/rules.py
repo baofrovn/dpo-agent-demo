@@ -128,6 +128,50 @@ class SensitiveKeywordBulkImport(BaseModel):
     keywords: List[dict]  # [{"keyword": "xxx", "category": "yyy", ...}, ...]
 
 
+# Intake Form Link Schemas
+class FormLinkBase(BaseModel):
+    """Base form link schema"""
+    name: str
+    url: str
+    description: Optional[str] = None
+    category: str
+    conditions: Optional[str] = None
+    is_active: bool = True
+    display_order: int = 0
+
+
+class FormLinkCreate(FormLinkBase):
+    """Create form link schema"""
+    pass
+
+
+class FormLinkUpdate(BaseModel):
+    """Update form link schema"""
+    name: Optional[str] = None
+    url: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+    conditions: Optional[str] = None
+    is_active: Optional[bool] = None
+    display_order: Optional[int] = None
+
+
+class FormLinkResponse(FormLinkBase):
+    """Form link response schema"""
+    id: str
+    created_at: str
+    updated_at: str
+    created_by: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class FormLinkReorder(BaseModel):
+    """Reorder form links schema"""
+    items: List[dict]  # [{"id": "xxx", "display_order": 1}, ...]
+
+
 # Audit Log Schema
 class AuditLogResponse(BaseModel):
     """Audit log response schema"""

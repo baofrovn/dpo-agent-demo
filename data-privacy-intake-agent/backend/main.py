@@ -42,6 +42,7 @@ async def startup_event():
         await crud.init_default_settings(db)
         await crud.init_default_agent_config(db)
         await crud.init_default_user(db)
+        await crud.init_default_form_links(db)
         break
 
 
@@ -337,4 +338,6 @@ async def list_knowledge_files():
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    import os
+    port = int(os.environ.get("PORT", 8080))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)

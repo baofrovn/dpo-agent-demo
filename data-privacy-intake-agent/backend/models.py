@@ -18,6 +18,13 @@ class ChecklistCategory(str, enum.Enum):
     GENERAL = "GENERAL"
 
 
+class FormLinkCategory(str, enum.Enum):
+    """Form link category enum"""
+    DOMESTIC = "DOMESTIC"
+    CROSS_BORDER = "CROSS_BORDER"
+    GENERAL = "GENERAL"
+
+
 class QuestionType(str, enum.Enum):
     """Question type enum"""
     YES_NO = "yes_no"
@@ -200,6 +207,39 @@ class SensitiveKeyword(Base):
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class IntakeFormLink(Base):
+    """Intake form link model"""
+    __tablename__ = "intake_form_links"
+    
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    name = Column(String(255), nullable=False)
+    url = Column(String(500), nullable=False)
+    description = Column(Text, nullable=True)
+    category = Column(SQLEnum(FormLinkCategory), nullable=False, index=True)
+    conditions = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False, index=True)
+    display_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_by = Column(String(36), ForeignKey('users.id'), nullable=True)
+    
+    def to_dict(self):
+        """Convert to dictionary"""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "url": self.url,
+            "description": self.description,
+            "category": self.category.value if self.category else None,
+            "conditions": self.conditions,
+            "is_active": self.is_active,
+            "display_order": self.display_order,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "created_by": self.created_by
         }
 
 

@@ -1,7 +1,7 @@
 import json
 from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from models import Session, Settings, AgentConfig, User, ChecklistItem, ScreeningQuestion, SensitiveKeyword, RuleAuditLog
+from models import Session, Settings, AgentConfig, User, ChecklistItem, ScreeningQuestion, SensitiveKeyword, RuleAuditLog, IntakeFormLink, FormLinkCategory
 from typing import Optional, List
 from auth import get_password_hash
 
@@ -200,4 +200,79 @@ async def init_default_user(db: AsyncSession):
     if existing is None:
         await create_user(db, "admin", "admin123", is_active=True)
         await db.commit()
+
+
+# Intake Form Links CRUD operations
+async def get_intake_form_links(db: AsyncSession) -> List[IntakeFormLink]:
+    """Get all intake form links"""
+    result = await db.execute(
+        select(IntakeFormLink).order_by(IntakeFormLink.display_order)
+    )
+    return result.scalars().all()
+
+
+async def init_default_form_links(db: AsyncSession):
+    """Initialize default form links from agent config if not exists"""
+    # Check if any form links already exist
+    existing_links = await get_intake_form_links(db)
+    if existing_links:
+        return  # Already initialized
+    
+    # Get current agent config to migrate old form links
+    config = await get_agent_config(db)
+    
+    default_links = []
+    
+    # Migrate Form A if exists in config
+    if config and config.get("form_a_link"):
+        default_links.append(IntakeFormLink(
+            name="Form A - Domestic Data Sharing Intake",
+            url=config["form_a_link"],
+            description="Dùng cho chia sẻ dữ liệu cá nhân với đối tác trong nước",
+            category=FormLinkCategory.DOMESTIC,
+            conditions="Đối tác và server đều ở Việt Nam",
+            is_active=True,
+            display_order=0
+        ))
+    else:
+        # Default Form A
+        default_links.append(IntakeFormLink(
+            name="Form A - Domestic Data Sharing Intake",
+            url="https://company.form/privacy-domestic-intake",
+            description="Dùng cho chia sẻ dữ liệu cá nhân với đối tác trong nước",
+            category=FormLinkCategory.DOMESTIC,
+            conditions="Đối tác và server đều ở Việt Nam",
+            is_active=True,
+            display_order=0
+        ))
+    
+    # Migrate Form B if exists in config
+    if config and config.get("form_b_link"):
+        default_links.append(IntakeFormLink(
+            name="Form B - Cross-border Data Transfer Intake",
+            url=config["form_b_link"],
+            description="Dùng cho chia sẻ dữ liệu cá nhân ra nước ngoài",
+            category=FormLinkCategory.CROSS_BORDER,
+            conditions="Đối tác hoặc server ở nước ngoài",
+            is_active=True,
+            display_order=1
+        ))
+    else:
+        # Default Form B
+        default_links.append(IntakeFormLink(
+            name="Form B - Cross-border Data Transfer Intake",
+            url="https://company.form/privacy-cross-border-intake",
+            description="Dùng cho chia sẻ dữ liệu cá nhân ra nước ngoài",
+            category=FormLinkCategory.CROSS_BORDER,
+            conditions="Đối tác hoặc server ở nước ngoài",
+            is_active=True,
+            display_order=1
+        ))
+    
+    # Add all default links
+    for link in default_links:
+        db.add(link)
+    
+    await db.flush()
+    await db.commit()
 
