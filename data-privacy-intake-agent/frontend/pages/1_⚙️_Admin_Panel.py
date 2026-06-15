@@ -11,8 +11,17 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import auth_helper
 
-# Configuration
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+# Configuration - Support both Streamlit Cloud (secrets) and local (env vars)
+def get_backend_url():
+    """Get backend URL from Streamlit secrets or environment variable"""
+    try:
+        # Try Streamlit secrets first (for Streamlit Cloud deployment)
+        return st.secrets["BACKEND_URL"]
+    except (KeyError, FileNotFoundError):
+        # Fallback to environment variable (for local/docker deployment)
+        return os.getenv("BACKEND_URL", "http://localhost:8000")
+
+BACKEND_URL = get_backend_url()
 
 # Page configuration
 st.set_page_config(

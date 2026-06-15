@@ -1,3 +1,7 @@
 .greennode.json
 .agentbase/
 .env
+credentials.json
+
+# Streamlit secrets (keep .example file)
+.streamlit/secrets.toml

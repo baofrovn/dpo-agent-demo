@@ -51,6 +51,58 @@ export BACKEND_URL=http://localhost:8000
 streamlit run app.py
 ```
 
+## Deploy to Streamlit Community Cloud
+
+### Quick Deploy
+
+1. **Push code to GitHub** (nếu chưa có):
+   ```bash
+   git add frontend/
+   git commit -m "Prepare frontend for Streamlit Cloud"
+   git push
+   ```
+
+2. **Deploy trên Streamlit Cloud**:
+   - Truy cập https://share.streamlit.io/
+   - Click "New app"
+   - Chọn repository và branch
+   - **Main file path**: `data-privacy-intake-agent/frontend/app.py`
+   - Click "Deploy"
+
+3. **Cấu hình Backend URL** (Secrets):
+   - Vào Settings → Secrets
+   - Thêm:
+     ```toml
+     BACKEND_URL = "https://your-backend-endpoint.agentbase.vngcloud.vn"
+     ```
+   - Click "Save"
+
+### Cấu trúc file cho Streamlit Cloud
+
+```
+frontend/
+├── app.py                    # Main app
+├── auth_helper.py            # Auth utilities
+├── requirements.txt          # Dependencies
+├── pages/
+│   └── 1_⚙️_Admin_Panel.py  # Admin page
+└── .streamlit/
+    └── config.toml          # Theme config
+```
+
+### Sau khi Backend lên AgentBase
+
+Khi backend đã deploy lên AgentBase và có endpoint URL, chỉ cần:
+
+1. Vào Streamlit Cloud → App Settings → Secrets
+2. Cập nhật `BACKEND_URL`:
+   ```toml
+   BACKEND_URL = "https://data-privacy-agent.xxx.agentbase.vngcloud.vn"
+   ```
+3. Save → App sẽ tự động restart với URL mới
+
+---
+
 ## Running with Docker
 
 Build the image:

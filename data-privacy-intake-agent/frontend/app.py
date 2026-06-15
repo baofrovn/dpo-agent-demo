@@ -7,8 +7,17 @@ from datetime import datetime
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 
-# Configuration
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+# Configuration - Support both Streamlit Cloud (secrets) and local (env vars)
+def get_backend_url():
+    """Get backend URL from Streamlit secrets or environment variable"""
+    try:
+        # Try Streamlit secrets first (for Streamlit Cloud deployment)
+        return st.secrets["BACKEND_URL"]
+    except (KeyError, FileNotFoundError):
+        # Fallback to environment variable (for local/docker deployment)
+        return os.getenv("BACKEND_URL", "http://localhost:8000")
+
+BACKEND_URL = get_backend_url()
 
 # Page configuration
 st.set_page_config(
