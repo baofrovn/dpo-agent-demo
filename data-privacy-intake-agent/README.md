@@ -1,10 +1,24 @@
 # Data Privacy Intake Agent
 
-A smart AI agent that helps Business/Product teams prepare comprehensive data privacy review requests before submission to the Data Privacy team at fintech companies.
+> AI Chatbot hỗ trợ team Biz/PO tại fintech chuẩn bị hồ sơ chia sẻ dữ liệu trước khi gửi Data Privacy review.
 
 **Built for:** Internal AI Competition Demo  
-**Version:** 1.0.0 MVP  
-**Status:** Prototype/Demo
+**Version:** 2.0.0  
+**Status:** Production Ready
+
+---
+
+## 🎯 Use Case Summary
+
+| Thành phần | Mô tả |
+|------------|-------|
+| **🔴 Vấn đề** | Team Biz/Product tại fintech thường gửi yêu cầu Data Privacy review thiếu thông tin, gây ra 3-5 lần trao đổi qua lại, làm chậm quy trình 2-4 tuần và tạo bottleneck cho team Privacy. |
+| **👥 Người dùng** | (1) Team Business/Product Owner cần chia sẻ dữ liệu khách hàng với vendors/partners; (2) Team Data Privacy cần review và phê duyệt các yêu cầu. |
+| **✅ Giải pháp** | AI Chatbot tự động: phân loại case (trong nước/nước ngoài), detect dữ liệu nhạy cảm, phát hiện thông tin thiếu, sinh checklist DPA/OTIA, tạo data flow diagram, draft email - giúp Biz gửi request đầy đủ ngay lần đầu. |
+
+### Mô tả ngắn
+
+**Data Privacy Intake Agent** giúp team Biz/PO chuẩn bị hồ sơ chia sẻ dữ liệu. Agent tự động phân loại, phát hiện gaps, sinh checklist và tóm tắt - giảm 70% thời gian trao đổi với Privacy team.
 
 ---
 

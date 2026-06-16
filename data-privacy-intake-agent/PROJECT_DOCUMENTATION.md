@@ -8,6 +8,20 @@
 
 ---
 
+## Use Case Summary (Tóm tắt Use Case)
+
+| Thành phần | Mô tả |
+|------------|-------|
+| **Vấn đề** | Team Biz/Product tại fintech thường gửi yêu cầu Data Privacy review thiếu thông tin, gây ra nhiều lần trao đổi qua lại, làm chậm quy trình phê duyệt và tạo bottleneck cho team Privacy. |
+| **Người dùng** | Team Business/Product Owner cần chia sẻ dữ liệu khách hàng với vendors/partners, và team Data Privacy cần review các yêu cầu này. |
+| **Giải pháp** | AI Chatbot tự động phân loại case (trong nước/nước ngoài, dữ liệu nhạy cảm), phát hiện thông tin thiếu, sinh checklist DPA/OTIA, tạo data flow diagram và draft email - giúp Biz gửi request đầy đủ ngay lần đầu. |
+
+### Mô tả ngắn (≤300 ký tự)
+
+**Data Privacy Intake Agent** giúp team Biz/PO tại fintech chuẩn bị hồ sơ chia sẻ dữ liệu. Agent tự động phân loại case, phát hiện thông tin thiếu, sinh checklist và tóm tắt - giảm 70% thời gian trao đổi qua lại với team Data Privacy.
+
+---
+
 ## Table of Contents
 
 1. [Executive Summary](#1-executive-summary)
